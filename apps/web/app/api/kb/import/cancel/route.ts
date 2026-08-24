@@ -1,1 +1,1 @@
-export { cancelImportJob as POST } from "@/server/kb/import-handlers"
+export { cancelImportBatch as POST } from "@/server/kb/import-batch-handlers"

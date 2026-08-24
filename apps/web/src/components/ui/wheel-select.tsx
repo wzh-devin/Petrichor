@@ -131,9 +131,9 @@ export function WheelSelect({
           disabled={disabled}
           className={cn(
             "flex w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs outline-none transition-[color,box-shadow]",
-            "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            "focus-visible:border-foreground focus-visible:ring-0",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            "dark:bg-input/30 dark:hover:bg-input/50",
+            "dark:bg-input/30",
             "data-[size=default]:h-9 data-[size=sm]:h-8",
             className,
           )}

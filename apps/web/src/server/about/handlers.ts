@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import type { NextRequest } from "next/server"
 import { requireCurrentUser } from "@/server/auth/current-user"
 import { getDb } from "@/server/db/client"
@@ -109,8 +109,22 @@ export async function adminAboutProfileUpdate(request: NextRequest) {
 }
 
 async function loadPublicAboutProfileResponse() {
-    const profile = await loadAboutProfileOrNull()
-    return buildAboutProfileResponse(profile)
+    const [profile, avatar] = await Promise.all([
+        loadAboutProfileOrNull(),
+        loadSiteOwnerAvatar(),
+    ])
+    return { ...buildAboutProfileResponse(profile), avatar }
+}
+
+/** 站点所有者沿用公开问答约定：取 ID 最小的超级管理员。 */
+async function loadSiteOwnerAvatar() {
+    const [owner] = await getDb()
+        .select({ avatar: users.avatar })
+        .from(users)
+        .where(eq(users.systemRole, "SUPER_ADMIN"))
+        .orderBy(asc(users.id))
+        .limit(1)
+    return owner?.avatar?.trim() || null
 }
 
 async function loadAboutProfileOrNull() {

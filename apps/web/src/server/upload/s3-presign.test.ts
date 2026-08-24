@@ -56,4 +56,23 @@ describe("s3 presign", () => {
         expect(parsed.host).toBe("blog-1.s3.bitiful.net")
         expect(parsed.pathname).toBe("/uploads/2/a.png")
     })
+
+    it("为 MinIO 生成路径风格预签名 URL", () => {
+        const url = createS3PresignedUrl({
+            accessKeyId: "test-ak",
+            bucket: "petrichor",
+            endpoint: "https://blog-storage.devin.wang",
+            expiresSeconds: 900,
+            forcePathStyle: true,
+            method: "PUT",
+            now: new Date("2026-04-27T00:00:00.000Z"),
+            objectKey: "uploads/1/a.pdf",
+            region: "us-east-1",
+            secretAccessKey: "test-sk",
+        })
+
+        const parsed = new URL(url)
+        expect(parsed.host).toBe("blog-storage.devin.wang")
+        expect(parsed.pathname).toBe("/petrichor/uploads/1/a.pdf")
+    })
 })

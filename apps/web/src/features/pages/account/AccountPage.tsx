@@ -1,8 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Copy, Link2, Pencil, QuoteIcon, RefreshCw } from "@/components/iconimate"
-import { useSearchParams } from "react-router-dom"
+import { Copy, Pencil, QuoteIcon, RefreshCw } from "@/components/iconimate"
 import { toast } from "sonner"
 
 import { authApi, type UserProfileResponse } from "@/lib/api"
@@ -43,13 +42,6 @@ function normalizeAxiosErrorMessage(e: unknown, fallback: string): string {
   return fallback
 }
 
-function toUserTypeLabel(value?: string | null) {
-  const raw = typeof value === "string" ? value : ""
-  if (raw === "LOCAL") return "本地注册"
-  if (raw === "LINUXDO") return "LinuxDo 三方登录"
-  return raw || "-"
-}
-
 function normalizeOptionalString(value?: string | null) {
   if (typeof value !== "string") return ""
   const text = value.trim()
@@ -81,15 +73,6 @@ function maskEmailForDisplay(value?: string | null) {
   const prefix = local.slice(0, prefixLength)
   const suffix = local.slice(-suffixLength)
   return `${prefix}***${suffix}@${domain}`
-}
-
-function formatLinuxDoAccount(profile: UserProfileResponse) {
-  const username = normalizeOptionalString(profile.linuxDoUsername)
-  const email = normalizeOptionalString(profile.linuxDoEmail)
-  if (username && email) return `@${username} · ${email}`
-  if (username) return `@${username}`
-  if (email) return email
-  return "已绑定"
 }
 
 async function copyToClipboard(value: string, label: string) {
@@ -139,16 +122,13 @@ function ProfileField({
 }
 
 export function AccountPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [profile, setProfile] = React.useState<UserProfileResponse | null>(null)
   const [editOpen, setEditOpen] = React.useState(false)
   const [savingProfile, setSavingProfile] = React.useState(false)
   const [changingPassword, setChangingPassword] = React.useState(false)
-  const [bindingLinuxDo, setBindingLinuxDo] = React.useState(false)
   const profileIncompleteToastShownRef = React.useRef(false)
-  const linuxDoBindingToastShownRef = React.useRef(false)
   const profileDraftSnapshotRef = React.useRef<{
     nickname: string
     avatar: string
@@ -181,17 +161,6 @@ export function AccountPage() {
   }, [fetchProfile])
 
   React.useEffect(() => {
-    if (searchParams.get("linuxdoBinding") !== "success") return
-    if (!linuxDoBindingToastShownRef.current) {
-      linuxDoBindingToastShownRef.current = true
-      toast.success("Linux.do 账号已绑定")
-    }
-    const next = new URLSearchParams(searchParams)
-    next.delete("linuxdoBinding")
-    setSearchParams(next, { replace: true })
-  }, [searchParams, setSearchParams])
-
-  React.useEffect(() => {
     if (!editOpen || !profile) return
     const snapshot = {
       nickname: normalizeOptionalString(profile.nickname),
@@ -207,7 +176,6 @@ export function AccountPage() {
     setConfirmPassword("")
   }, [editOpen, profile])
 
-  const isLocalUser = profile?.userType === "LOCAL"
   const emailText = normalizeOptionalString(profile?.email)
   const signatureText = normalizeOptionalString(profile?.signature)
   const maskedEmailText = maskEmailForDisplay(emailText)
@@ -290,10 +258,6 @@ export function AccountPage() {
   }
 
   const changePassword = async () => {
-    if (!isLocalUser) {
-      toast.error("第三方登录账号不支持修改密码")
-      return
-    }
     const current = currentPassword.trim()
     const next = newPassword.trim()
     const confirm = confirmPassword.trim()
@@ -323,11 +287,6 @@ export function AccountPage() {
     } finally {
       setChangingPassword(false)
     }
-  }
-
-  const startLinuxDoBinding = () => {
-    setBindingLinuxDo(true)
-    window.location.assign("/api/auth/linuxdo/bind/start")
   }
 
   if (loading && !profile) {
@@ -432,35 +391,11 @@ export function AccountPage() {
                 </div>
 
                 <div className="divide-y rounded-lg border px-4">
-                  <ProfileField label="用户类型" value={toUserTypeLabel(profile.userType)} />
                   <ProfileField label="用户名" value={profile.username} />
                   <ProfileField label="昵称" value={profile.nickname} />
                   <ProfileField label="邮箱" value={maskedEmailText} copyLabel="邮箱" copyValue={emailText || undefined} />
                   <ProfileField label="创建时间" value={formatDateTime(profile.createdAt)} />
                   <ProfileField label="更新时间" value={formatDateTime(profile.updatedAt)} />
-                </div>
-
-                <div className="rounded-lg border px-4 py-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <div className="text-sm font-medium">Linux.do 账号</div>
-                      <div className="break-all text-sm text-muted-foreground">
-                        {profile.linuxDoBound ? formatLinuxDoAccount(profile) : "未绑定"}
-                      </div>
-                    </div>
-                    {isLocalUser && !profile.linuxDoBound ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={startLinuxDoBinding}
-                        disabled={bindingLinuxDo}
-                      >
-                        <Link2 className="h-4 w-4 mr-2" />
-                        {bindingLinuxDo ? "跳转中..." : "绑定 Linux.do"}
-                      </Button>
-                    ) : null}
-                  </div>
                 </div>
 
                 <TwoFactorSection profile={profile} onChanged={() => void fetchProfile()} />
@@ -472,7 +407,7 @@ export function AccountPage() {
                     <DialogHeader>
                       <DialogTitle>编辑个人信息</DialogTitle>
                       <DialogDescription>
-                        本地注册账号支持修改资料与密码；第三方登录账号仅支持修改资料。
+                        修改账号资料或更新当前登录密码。
                       </DialogDescription>
                     </DialogHeader>
 
@@ -526,43 +461,35 @@ export function AccountPage() {
                       </TabsContent>
 
                       <TabsContent value="password" className="space-y-4">
-                        {isLocalUser ? (
-                          <>
-                            <div className="space-y-2">
-                              <Label htmlFor="currentPassword">当前密码</Label>
-                              <Input
-                                id="currentPassword"
-                                type="password"
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                placeholder="请输入当前密码"
-                              />
-                            </div>
-                            <PasswordFields
-                              password={newPassword}
-                              confirmPassword={confirmPassword}
-                              onPasswordChange={setNewPassword}
-                              onConfirmPasswordChange={setConfirmPassword}
-                              passwordLabel="新密码"
-                              confirmPasswordLabel="确认新密码"
-                              passwordPlaceholder="至少 8 位，含大写字母、数字、特殊字符"
-                              confirmPasswordPlaceholder="请再次输入新密码"
-                            />
-                            <DialogFooter>
-                              <Button
-                                type="button"
-                                onClick={() => void changePassword()}
-                                disabled={changingPassword}
-                              >
-                                {changingPassword ? "提交中..." : "修改密码"}
-                              </Button>
-                            </DialogFooter>
-                          </>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">
-                            第三方登录账号暂不支持修改密码。
-                          </div>
-                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="currentPassword">当前密码</Label>
+                          <Input
+                            id="currentPassword"
+                            type="password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            placeholder="请输入当前密码"
+                          />
+                        </div>
+                        <PasswordFields
+                          password={newPassword}
+                          confirmPassword={confirmPassword}
+                          onPasswordChange={setNewPassword}
+                          onConfirmPasswordChange={setConfirmPassword}
+                          passwordLabel="新密码"
+                          confirmPasswordLabel="确认新密码"
+                          passwordPlaceholder="至少 8 位，含大写字母、数字、特殊字符"
+                          confirmPasswordPlaceholder="请再次输入新密码"
+                        />
+                        <DialogFooter>
+                          <Button
+                            type="button"
+                            onClick={() => void changePassword()}
+                            disabled={changingPassword}
+                          >
+                            {changingPassword ? "提交中..." : "修改密码"}
+                          </Button>
+                        </DialogFooter>
                       </TabsContent>
                     </Tabs>
                   </DialogContent>

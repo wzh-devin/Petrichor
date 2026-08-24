@@ -2,7 +2,6 @@
 
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams, Outlet } from 'react-router-dom'
 import { LoginForm } from '@/components/login-form'
-import { AuthCallback } from '@/components/auth-callback'
 import { ThemeProvider } from '@/components/theme-provider'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { useEffect, useRef } from 'react'
@@ -34,21 +33,19 @@ import { TagsPage } from '@/features/pages/blog/TagsPage'
 import { SiteGraphPage } from '@/features/pages/graph/SiteGraphPage'
 import { AboutPage } from '@/features/pages/about/AboutPage'
 import { ProjectsPage } from '@/features/pages/projects/ProjectsPage'
-import { PetrichorPage } from '@/features/pages/petrichor/PetrichorPage'
-import { PublicQaPage } from '@/features/pages/ask/PublicQaPage'
 import { AccountPage } from '@/features/pages/account/AccountPage'
 import { DashboardMetricsPage } from '@/features/pages/dashboard/DashboardMetricsPage'
 import { PublicArticlePage } from '@/features/pages/public/PublicArticlePage'
 import { BurnReadPage } from '@/features/pages/public/burn/BurnReadPage'
 import { UserManagementPage } from '@/features/pages/admin/UserManagementPage'
 import { AboutProfileConfigPage } from '@/features/pages/admin/AboutProfileConfigPage'
+import { SiteAppearanceConfigPage } from '@/features/pages/admin/SiteAppearanceConfigPage'
 import { ProjectsConfigPage } from '@/features/pages/admin/ProjectsConfigPage'
 import { NotificationPage } from '@/features/pages/notification/NotificationPage'
 import { dashboardRoutes, isFixedViewportRoute } from '@/lib/dashboard-routes'
 import { enterDemoMode } from '@/lib/demo/demo-mode'
 import { DemoModeBanner } from '@/components/demo-mode-banner'
 import { isPublicSitePath } from '@/lib/public-theme-routes'
-import { SiteAppearanceConfigPage } from '@/features/pages/admin/SiteAppearanceConfigPage'
 import { SiteGraphConfigPage } from '@/features/pages/admin/SiteGraphConfigPage'
 
 function LoginPage() {
@@ -184,17 +181,18 @@ function AppThemeScope() {
         <div style={{ position: 'relative', minHeight: '100vh' }}>
           <Routes>
             <Route path="/" element={<BlogHomePage />} />
+            <Route path="/library/:knowledgeBaseId" element={<BlogHomePage />} />
+            <Route path="/library/:knowledgeBaseId/:folderId" element={<BlogHomePage />} />
             <Route path="/tags" element={<TagsPage />} />
             <Route path="/graph" element={<SiteGraphPage />} />
-            <Route path="/ask" element={<PublicQaPage />} />
+            <Route path="/ask" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/petrichor" element={<PetrichorPage />} />
+            <Route path="/petrichor" element={<Navigate to="/" replace />} />
             <Route path="/demo" element={<DemoEntry />} />
             <Route path="/p/:shareCode" element={<PublicArticlePage />} />
             <Route path="/b/:code" element={<BurnReadPage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/dashboard" element={<DashboardLayout />}>
               <Route index element={<Navigate to={dashboardRoutes.assistant} replace />} />
               <Route path="assistant" element={<AssistantChatPage />} />
@@ -212,9 +210,9 @@ function AppThemeScope() {
               <Route path="knowledge/:knowledgeBaseId/articles/:articleId" element={<KnowledgeBaseArticleEditorPage />} />
               <Route path="knowledge/:knowledgeBaseId/articles/:articleId/mindmap" element={<KnowledgeBaseArticleMindMapPage />} />
               <Route path="admin/users" element={<UserManagementPage />} />
+              <Route path="admin/appearance" element={<SiteAppearanceConfigPage />} />
               <Route path="admin/about" element={<AboutProfileConfigPage />} />
               <Route path="admin/projects" element={<ProjectsConfigPage />} />
-              <Route path="admin/appearance" element={<SiteAppearanceConfigPage />} />
               <Route path="admin/site-graph" element={<SiteGraphConfigPage />} />
               <Route path="ai/config" element={<AiModelConfigPage />} />
               <Route path="ai/review" element={<AiReviewPage />} />

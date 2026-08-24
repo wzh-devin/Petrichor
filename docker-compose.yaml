@@ -1,0 +1,35 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: petrichor:web
+    container_name: petrichor-web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    env_file:
+      - ./apps/web/.env.local
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 80
+      NEXT_TELEMETRY_DISABLED: "1"
+
+  # 可选：本地开发时同时启动一套 PostgreSQL；生产请直接把 DATABASE_URL 指向外部数据库并注释掉该服务
+  postgres:
+    image: postgres:16-alpine
+    container_name: petrichor-postgres
+    profiles: ["local-db"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-petrichor}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

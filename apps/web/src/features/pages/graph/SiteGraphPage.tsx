@@ -97,16 +97,15 @@ export function SiteGraphPage() {
         content = <p className="py-16 text-center text-sm opacity-80">{siteGraphCopy.empty}</p>
     } else {
         content = (
-            // 必须给定高度而不是 min-height：点群舞台是绝对定位的，自身不产生高度，
-            // 容器高度靠这里一次性定死，避免又退回到靠内容撑开
-            <div className="flex h-[78vh] min-h-[28rem] flex-col text-foreground">
+            // 移动端保留固定高度；桌面端交给页面 Flex 布局分配首屏剩余空间。
+            <div className="flex h-[78vh] min-h-[28rem] flex-col text-foreground lg:h-auto lg:min-h-0 lg:flex-1">
                 <SiteGraphExplorer payload={payload} onNavigate={handleNavigate} />
             </div>
         )
     }
 
     return (
-        <main className="scrollbar-hide retypeset-home relative flex min-h-screen flex-col overflow-hidden bg-[#0044cc] text-white selection:bg-yellow-300 selection:text-blue-950">
+        <main className="scrollbar-hide retypeset-home relative flex min-h-screen flex-col overflow-hidden bg-[#0044cc] text-white selection:bg-yellow-300 selection:text-blue-950 lg:h-dvh lg:min-h-0">
             <div className="blog-home-grid pointer-events-none fixed inset-0 z-0" />
 
                 <div className="relative z-30 mx-auto w-full max-w-[51.462rem] px-[min(7.25vw,3.731rem)] pt-10 lg:contents">
@@ -114,7 +113,7 @@ export function SiteGraphPage() {
                 <RetypesetSiteNav activeSection="graph" dockVisible />
             </div>
 
-            <section className="site-graph-section relative z-20 mx-auto flex w-full max-w-[72rem] flex-1 flex-col px-[min(7.25vw,3.731rem)] py-12 lg:py-20">
+            <section className="site-graph-section relative z-20 mx-auto flex min-h-0 w-full max-w-[72rem] flex-1 flex-col px-[min(7.25vw,3.731rem)] py-12 lg:py-20">
                 <div className="blog-home-fade-in retypeset-decorative-line" aria-hidden="true" />
                 <header className="blog-home-fade-in blog-delay-300 mb-6">
                     <h1 className="retypeset-font-title text-2xl font-bold">{siteGraphCopy.title}</h1>

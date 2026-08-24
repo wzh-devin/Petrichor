@@ -1,9 +1,7 @@
 import type { Metadata } from "next"
 import type { PublicArticleListItem } from "@/lib/api"
+import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_LOGO_SRC, DEFAULT_SITE_NAME } from "@/lib/site-branding"
 import { getPublicBaseUrl, toAbsolutePublicUrl } from "@/server/public-site/site-url"
-
-const siteName = "Petrichor"
-const defaultDescription = "Petrichor 公开文章、知识与灵感更新。"
 
 type PublicMetadataOptions = {
     title: string
@@ -15,12 +13,57 @@ type PublicMetadataOptions = {
     updatedAt?: string
 }
 
-function cleanDescription(value: string) {
-    return value.replace(/\s+/g, " ").trim().slice(0, 160) || defaultDescription
+function defaultDescription(siteName: string) {
+    return `${siteName} 公开文章、知识与灵感更新。`
 }
 
-function withSiteName(title: string) {
+function cleanDescription(value: string, siteName: string) {
+    return value.replace(/\s+/g, " ").trim().slice(0, 160) || defaultDescription(siteName)
+}
+
+function withSiteName(title: string, siteName: string) {
     return title === siteName ? siteName : `${title} | ${siteName}`
+}
+
+export function buildRootMetadata(
+    siteName = DEFAULT_SITE_NAME,
+    icon = { url: DEFAULT_SITE_LOGO_SRC, type: "image/jpeg" },
+    siteDescription = DEFAULT_SITE_DESCRIPTION,
+): Metadata {
+    const baseUrl = getPublicBaseUrl()
+    const description = cleanDescription(siteDescription, siteName)
+
+    return {
+        metadataBase: new URL(baseUrl),
+        title: {
+            default: siteName,
+            template: `%s | ${siteName}`,
+        },
+        description,
+        icons: {
+            icon: [icon],
+        },
+        alternates: {
+            canonical: toAbsolutePublicUrl("/", baseUrl),
+            types: {
+                "application/atom+xml": toAbsolutePublicUrl("/atom.xml", baseUrl),
+                "application/rss+xml": toAbsolutePublicUrl("/rss.xml", baseUrl),
+            },
+        },
+        openGraph: {
+            title: siteName,
+            description,
+            url: toAbsolutePublicUrl("/", baseUrl),
+            siteName,
+            locale: "zh_CN",
+            type: "website",
+        },
+        twitter: {
+            card: "summary",
+            title: siteName,
+            description,
+        },
+    }
 }
 
 export function buildPublicMetadata({
@@ -31,11 +74,11 @@ export function buildPublicMetadata({
     type = "website",
     tags,
     updatedAt,
-}: PublicMetadataOptions): Metadata {
+}: PublicMetadataOptions, siteName = DEFAULT_SITE_NAME): Metadata {
     const baseUrl = getPublicBaseUrl()
     const canonical = toAbsolutePublicUrl(pathname, baseUrl)
-    const normalizedTitle = withSiteName(title)
-    const normalizedDescription = cleanDescription(description)
+    const normalizedTitle = withSiteName(title, siteName)
+    const normalizedDescription = cleanDescription(description, siteName)
 
     return {
         metadataBase: new URL(baseUrl),
@@ -68,13 +111,13 @@ export function buildPublicMetadata({
     }
 }
 
-export function buildStaticPublicPageMetadata(pathname: string): Metadata {
+export function buildStaticPublicPageMetadata(pathname: string, siteName = DEFAULT_SITE_NAME): Metadata {
     if (pathname === "/tags") {
         return buildPublicMetadata({
             title: "标签",
-            description: "按标签浏览 Petrichor 公开文章。",
+            description: `按标签浏览 ${siteName} 公开文章。`,
             pathname,
-        })
+        }, siteName)
     }
 
     if (pathname === "/about") {
@@ -82,15 +125,7 @@ export function buildStaticPublicPageMetadata(pathname: string): Metadata {
             title: "关于",
             description: "了解 CiZai 的个人介绍、技术栈与创作方向。",
             pathname,
-        })
-    }
-
-    if (pathname === "/ask") {
-        return buildPublicMetadata({
-            title: "AI 问答",
-            description: "向 AI 提问，基于 Petrichor 公开文章实时检索作答。",
-            pathname,
-        })
+        }, siteName)
     }
 
     if (pathname === "/graph") {
@@ -98,7 +133,7 @@ export function buildStaticPublicPageMetadata(pathname: string): Metadata {
             title: "全站星图",
             description: "把公开文章、分类、标签以及 AI 抽取的概念与实体连成一张可交互的点群星图。",
             pathname,
-        })
+        }, siteName)
     }
 
     if (pathname === "/projects") {
@@ -106,35 +141,30 @@ export function buildStaticPublicPageMetadata(pathname: string): Metadata {
             title: "开源项目",
             description: "CiZai 做过、参与过的一些开源项目。",
             pathname,
-        })
-    }
-
-    if (pathname === "/petrichor") {
-        return buildPublicMetadata({
-            title: "Petrichor · 开箱即用的全栈知识库与博客平台",
-            description:
-                "Petrichor 把富文本编辑器、多层级知识库、公开博客、AI 助手与 Agent 开放层做进同一个 Next.js 全栈应用，Vercel + Supabase 零自建服务器即可上线。",
-            pathname,
-        })
+        }, siteName)
     }
 
     return buildPublicMetadata({
         title: siteName,
-        description: defaultDescription,
+        description: defaultDescription(siteName),
         pathname: "/",
-    })
+    }, siteName)
 }
 
-export function buildDashboardMetadata(pathname: string): Metadata {
+export function buildDashboardMetadata(pathname: string, siteName = DEFAULT_SITE_NAME): Metadata {
     return buildPublicMetadata({
         title: pathname.startsWith("/login") ? "登录" : "工作台",
-        description: "Petrichor 私有工作台。",
+        description: `${siteName} 私有工作台。`,
         pathname,
         index: false,
-    })
+    }, siteName)
 }
 
-export function buildArticleMetadata(article: PublicArticleListItem | null, pathname: string): Metadata {
+export function buildArticleMetadata(
+    article: PublicArticleListItem | null,
+    pathname: string,
+    siteName = DEFAULT_SITE_NAME,
+): Metadata {
     if (!article) {
         return buildPublicMetadata({
             title: "文章不可用",
@@ -142,7 +172,7 @@ export function buildArticleMetadata(article: PublicArticleListItem | null, path
             pathname,
             index: false,
             type: "article",
-        })
+        }, siteName)
     }
 
     const index = !article.expired && !article.hasPassword
@@ -154,51 +184,56 @@ export function buildArticleMetadata(article: PublicArticleListItem | null, path
         type: "article",
         tags: article.tags,
         updatedAt: article.updatedAt,
-    })
+    }, siteName)
 }
 
 export function resolvePublicRouteMetadata(
     pathSegments: readonly string[],
     articles: readonly PublicArticleListItem[],
+    siteName = DEFAULT_SITE_NAME,
 ): Metadata {
     const [firstSegment, secondSegment] = pathSegments
     const pathname = pathSegments.length > 0 ? `/${pathSegments.join("/")}` : "/"
 
     if (!firstSegment) {
-        return buildStaticPublicPageMetadata("/")
+        return buildStaticPublicPageMetadata("/", siteName)
     }
     if (firstSegment === "tags" && pathSegments.length === 1) {
-        return buildStaticPublicPageMetadata("/tags")
+        return buildStaticPublicPageMetadata("/tags", siteName)
     }
     if (firstSegment === "about" && pathSegments.length === 1) {
-        return buildStaticPublicPageMetadata("/about")
-    }
-    if (firstSegment === "ask" && pathSegments.length === 1) {
-        return buildStaticPublicPageMetadata("/ask")
+        return buildStaticPublicPageMetadata("/about", siteName)
     }
     if (firstSegment === "graph" && pathSegments.length === 1) {
-        return buildStaticPublicPageMetadata("/graph")
+        return buildStaticPublicPageMetadata("/graph", siteName)
     }
     if (firstSegment === "projects" && pathSegments.length === 1) {
-        return buildStaticPublicPageMetadata("/projects")
-    }
-    if (firstSegment === "petrichor" && pathSegments.length === 1) {
-        return buildStaticPublicPageMetadata("/petrichor")
+        return buildStaticPublicPageMetadata("/projects", siteName)
     }
     if (firstSegment === "demo" && pathSegments.length === 1) {
         return buildPublicMetadata({
             title: "演示模式",
-            description: "免登录体验 Petrichor 工作台：知识库、编辑器与 AI 助手，数据仅存于浏览器内存。",
+            description: `免登录体验 ${siteName} 工作台：知识库、编辑器与 AI 助手，数据仅存于浏览器内存。`,
             pathname,
             index: false,
-        })
+        }, siteName)
     }
     if (firstSegment === "p" && secondSegment) {
         const article = articles.find((item) => item.shareCode === secondSegment) ?? null
-        return buildArticleMetadata(article, pathname)
+        return buildArticleMetadata(article, pathname, siteName)
+    }
+    if (firstSegment === "library"
+        && pathSegments.length >= 2
+        && pathSegments.length <= 3
+        && pathSegments.slice(1).every((segment) => /^[1-9]\d*$/.test(segment))) {
+        return buildPublicMetadata({
+            title: "文章",
+            description: `按知识库与目录浏览 ${siteName} 已发布内容。`,
+            pathname,
+        }, siteName)
     }
     if (firstSegment === "dashboard" || firstSegment === "login" || firstSegment === "auth") {
-        return buildDashboardMetadata(pathname)
+        return buildDashboardMetadata(pathname, siteName)
     }
     if (firstSegment === "b" && secondSegment) {
         // 阅后即焚链接：私密、一次性，绝不索引、也不泄露文章标题。
@@ -207,13 +242,13 @@ export function resolvePublicRouteMetadata(
             description: "这是一个阅后即焚的私密访问链接。",
             pathname,
             index: false,
-        })
+        }, siteName)
     }
 
     return buildPublicMetadata({
         title: "页面未找到",
-        description: "这个 Petrichor 页面不存在或暂未公开。",
+        description: `这个 ${siteName} 页面不存在或暂未公开。`,
         pathname,
         index: false,
-    })
+    }, siteName)
 }

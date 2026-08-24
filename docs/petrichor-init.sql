@@ -6,10 +6,6 @@ create table if not exists petrichor_user (
     email text not null,
     password_hash text not null,
     system_role text not null default 'USER',
-    user_type text not null default 'LOCAL',
-    linuxdo_account_id text,
-    linuxdo_username text,
-    linuxdo_email text,
     username text,
     nickname text,
     avatar text,
@@ -22,18 +18,9 @@ create table if not exists petrichor_user (
 alter table petrichor_user
     add column if not exists auth_user_id text;
 
-alter table petrichor_user
-    add column if not exists linuxdo_account_id text,
-    add column if not exists linuxdo_username text,
-    add column if not exists linuxdo_email text;
-
 create unique index if not exists ux_petrichor_user_auth_user_id
     on petrichor_user(auth_user_id)
     where auth_user_id is not null;
-
-create unique index if not exists ux_petrichor_user_linuxdo_account_id
-    on petrichor_user(linuxdo_account_id)
-    where linuxdo_account_id is not null;
 
 create table if not exists better_auth_user (
     id text primary key,
@@ -633,6 +620,11 @@ insert into petrichor_site_about_profile (
 create table if not exists petrichor_site_appearance (
     id integer primary key,
     public_qa_enabled boolean not null default true,
+    site_name text not null default 'Petrichor',
+    site_description text not null default 'Knowledge, Articles & Inspiration',
+    sidebar_title text not null default 'Petrichor',
+    site_logo_json text,
+    font_config_json text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -640,6 +632,41 @@ create table if not exists petrichor_site_appearance (
 insert into petrichor_site_appearance (id, public_qa_enabled)
 values (1, true)
 on conflict (id) do nothing;
+
+alter table petrichor_site_appearance
+    add column if not exists font_config_json text;
+
+alter table petrichor_site_appearance
+    add column if not exists site_name text;
+
+alter table petrichor_site_appearance
+    add column if not exists site_description text;
+
+alter table petrichor_site_appearance
+    add column if not exists sidebar_title text;
+
+alter table petrichor_site_appearance
+    add column if not exists site_logo_json text;
+
+update petrichor_site_appearance
+set site_name = 'Petrichor'
+where site_name is null or btrim(site_name) = '';
+
+update petrichor_site_appearance
+set site_description = 'Knowledge, Articles & Inspiration'
+where site_description is null or btrim(site_description) = '';
+
+update petrichor_site_appearance
+set sidebar_title = 'Petrichor'
+where sidebar_title is null or btrim(sidebar_title) = '';
+
+alter table petrichor_site_appearance
+    alter column site_name set default 'Petrichor',
+    alter column site_name set not null,
+    alter column site_description set default 'Knowledge, Articles & Inspiration',
+    alter column site_description set not null,
+    alter column sidebar_title set default 'Petrichor',
+    alter column sidebar_title set not null;
 
 create table if not exists petrichor_ai_model_config (
     id bigint generated always as identity primary key,
@@ -688,19 +715,56 @@ create unique index if not exists ux_petrichor_ai_review_user_period
 create index if not exists idx_petrichor_ai_review_user_generated
     on petrichor_ai_review(user_id, generated_at);
 
-create table if not exists petrichor_kb_import_job (
+create table if not exists petrichor_kb_import_batch (
     id bigint generated always as identity primary key,
     user_id bigint not null references petrichor_user(id) on delete cascade,
     knowledge_base_id bigint not null references petrichor_kb_knowledge_base(id) on delete cascade,
     parent_node_id bigint references petrichor_kb_node(id) on delete set null,
     source_type text not null,
+    source_name text not null,
+    source_ref text,
+    source_payload_json text,
+    status text not null default 'pending',
+    total_items integer not null default 0,
+    completed_items integer not null default 0,
+    failed_items integer not null default 0,
+    skipped_items integer not null default 0,
+    attempt_count integer not null default 0,
+    next_retry_at timestamptz,
+    locked_at timestamptz,
+    error text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_petrichor_kb_import_batch_user
+    on petrichor_kb_import_batch(user_id, created_at desc);
+create index if not exists idx_petrichor_kb_import_batch_user_kb
+    on petrichor_kb_import_batch(user_id, knowledge_base_id);
+create index if not exists idx_petrichor_kb_import_batch_queue
+    on petrichor_kb_import_batch(status, next_retry_at, locked_at);
+
+create table if not exists petrichor_kb_import_job (
+    id bigint generated always as identity primary key,
+    batch_id bigint references petrichor_kb_import_batch(id) on delete cascade,
+    user_id bigint not null references petrichor_user(id) on delete cascade,
+    knowledge_base_id bigint not null references petrichor_kb_knowledge_base(id) on delete cascade,
+    parent_node_id bigint references petrichor_kb_node(id) on delete set null,
+    source_type text not null,
     file_name text not null,
+    source_key text,
+    source_ref text,
+    relative_path text,
+    source_payload_json text,
     title text not null,
     total_pages integer not null default 0,
     processed_pages integer not null default 0,
     status text not null default 'pending',
     model_config_id bigint,
     article_id bigint references petrichor_kb_article(id) on delete set null,
+    attempt_count integer not null default 0,
+    next_retry_at timestamptz,
+    locked_at timestamptz,
     error text,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -711,12 +775,17 @@ create index if not exists idx_petrichor_kb_import_job_user
 
 create index if not exists idx_petrichor_kb_import_job_user_kb
     on petrichor_kb_import_job(user_id, knowledge_base_id);
+create index if not exists idx_petrichor_kb_import_job_batch
+    on petrichor_kb_import_job(batch_id, created_at);
+create index if not exists idx_petrichor_kb_import_job_queue
+    on petrichor_kb_import_job(status, next_retry_at, locked_at);
 
 create table if not exists petrichor_kb_import_job_page (
     id bigint generated always as identity primary key,
     job_id bigint not null references petrichor_kb_import_job(id) on delete cascade,
     page_no integer not null,
-    image_key text not null,
+    image_key text,
+    extracted_by text not null default 'vision',
     status text not null default 'pending',
     markdown text,
     error text,
@@ -727,6 +796,21 @@ create table if not exists petrichor_kb_import_job_page (
 
 create index if not exists idx_petrichor_kb_import_job_page_job
     on petrichor_kb_import_job_page(job_id);
+
+create table if not exists petrichor_feishu_connection (
+    id bigint generated always as identity primary key,
+    user_id bigint not null references petrichor_user(id) on delete cascade,
+    open_id text,
+    display_name text,
+    access_token_encrypted text not null,
+    refresh_token_encrypted text,
+    access_token_expires_at timestamptz,
+    refresh_token_expires_at timestamptz,
+    scope text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (user_id)
+);
 
 create table if not exists petrichor_kb_wiki_tree_node (
                                                            id bigint generated always as identity primary key,

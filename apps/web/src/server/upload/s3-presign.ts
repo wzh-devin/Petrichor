@@ -65,8 +65,11 @@ function canonicalQuery(params: Array<[string, string]>) {
         .join("&")
 }
 
-function virtualHostUrl(endpoint: string, bucket: string) {
+function s3BaseUrl(endpoint: string, bucket: string, forcePathStyle = false) {
     const parsed = new URL(endpoint)
+    if (forcePathStyle) {
+        return parsed
+    }
     if (parsed.hostname === bucket || parsed.hostname.startsWith(`${bucket}.`)) {
         return parsed
     }
@@ -79,9 +82,9 @@ export function createS3PresignedUrl(input: CreateS3PresignedUrlInput): string {
     const amzDate = toAmzDate(now)
     const dateStamp = amzDate.slice(0, 8)
     const credentialScope = `${dateStamp}/${input.region}/s3/aws4_request`
-    const baseUrl = virtualHostUrl(input.endpoint, input.bucket)
+    const baseUrl = s3BaseUrl(input.endpoint, input.bucket, input.forcePathStyle)
     const host = baseUrl.host
-    const canonicalUri = encodePathname(stripS4KeyPrefix(input.objectKey))
+    const canonicalUri = `${input.forcePathStyle ? `/${encodeURIComponent(input.bucket)}` : ""}${encodePathname(stripS4KeyPrefix(input.objectKey))}`
     const params: Array<[string, string]> = [
         ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
         ["X-Amz-Credential", `${input.accessKeyId}/${credentialScope}`],

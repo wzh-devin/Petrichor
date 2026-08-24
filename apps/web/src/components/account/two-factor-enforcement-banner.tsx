@@ -20,7 +20,6 @@ export function TwoFactorEnforcementBanner() {
         if (cancelled) return
         const profile = res.data
         const needsSetup =
-          profile.userType === "LOCAL" &&
           profile.systemRole === "SUPER_ADMIN" &&
           !profile.twoFactorEnabled
         setShow(needsSetup)

@@ -3,14 +3,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronDown,
-  BookOpen,
   FileText,
   FileUp,
   Folder,
   FolderInput,
   FolderOpen,
   FolderPlus,
-  GripVertical,
   Loader2,
   MoreHorizontal,
   Plus,
@@ -22,6 +20,7 @@ import {
   closestCenter,
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   pointerWithin,
   useDroppable,
@@ -35,6 +34,7 @@ import {
 } from "@dnd-kit/core"
 import {
   SortableContext,
+  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
@@ -61,6 +61,13 @@ import { notify } from "@/components/petrichor-ui/notify"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
+import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -68,10 +75,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { AppPagination } from "@/components/app-pagination"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { OrbitingCircles } from "@/components/godui/orbiting-circles"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,11 +84,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   BATCH_IMPORT_MAX_FILES,
   buildImportFileKey,
@@ -109,9 +109,15 @@ import {
   knowledgeBaseArticlePath,
 } from "@/lib/dashboard-routes"
 import { DocumentImportDialog } from "@/components/knowledge/DocumentImportDialog"
+import { FeishuImportDialog, MarkdownImportDialog } from "@/components/knowledge/SourceImportDialogs"
 import { cn } from "@/lib/utils"
 import { gsap } from "@/lib/gsap"
 import { rememberKnowledgeBase } from "@/features/pages/knowledge/kb-recent"
+import {
+  resolveTreeDropPosition,
+  resolveTreeTargetIndex,
+  type TreeDropPosition,
+} from "@/features/pages/knowledge/knowledge-tree-dnd"
 
 /**
  * 文章节点状态：用 StatusDot 降噪，悬停看含义，避免彩色胶囊墙抢标题注意力。
@@ -228,8 +234,9 @@ async function parseArticleBatchFile(
 }
 
 const NODE_DND_PREFIX = "kb-node:"
-const FOLDER_DROP_DND_PREFIX = "kb-folder-drop:"
+const ROOT_DROP_DND_ID = "kb-root-drop"
 const TREE_NODE_INDENT_PX = 20
+const ROOT_PAGE_SIZE = 30
 
 type FolderTreeNode = {
   id: string
@@ -244,17 +251,8 @@ type SortableTreeNodeBindings = Pick<
   "attributes" | "listeners" | "isDragging"
 >
 
-type DragRect = {
-  height: number
-  top: number
-}
-
 function toNodeDndId(nodeId: string) {
   return `${NODE_DND_PREFIX}${nodeId}`
-}
-
-function toFolderDropDndId(folderId: string) {
-  return `${FOLDER_DROP_DND_PREFIX}${folderId}`
 }
 
 function parseNodeDndId(value: UniqueIdentifier | null | undefined): string | null {
@@ -265,30 +263,8 @@ function parseNodeDndId(value: UniqueIdentifier | null | undefined): string | nu
   return raw.startsWith(NODE_DND_PREFIX) ? raw.slice(NODE_DND_PREFIX.length) : null
 }
 
-function parseFolderDropDndId(value: UniqueIdentifier | null | undefined): string | null {
-  if (value == null) {
-    return null
-  }
-  const raw = String(value)
-  return raw.startsWith(FOLDER_DROP_DND_PREFIX)
-    ? raw.slice(FOLDER_DROP_DND_PREFIX.length)
-    : null
-}
-
 function resolveOverNodeId(value: UniqueIdentifier | null | undefined): string | null {
-  return parseNodeDndId(value) ?? parseFolderDropDndId(value)
-}
-
-function isDropInFolderBody(activeRect: DragRect | null | undefined, overRect: DragRect | null | undefined) {
-  if (!activeRect || !overRect) {
-    return true
-  }
-
-  const activeCenterY = activeRect.top + activeRect.height / 2
-  const bodyTop = overRect.top + overRect.height * 0.25
-  const bodyBottom = overRect.top + overRect.height * 0.75
-
-  return activeCenterY >= bodyTop && activeCenterY <= bodyBottom
+  return parseNodeDndId(value)
 }
 
 function formatDateYmd(date: Date) {
@@ -402,90 +378,50 @@ function collectVisibleNodeDndIds(
   return ids
 }
 
-function KnowledgeBaseDragHandle({
-  bindings,
-  disabled,
-  nodeName,
-}: {
-  bindings: SortableTreeNodeBindings
-  disabled?: boolean
-  nodeName: string
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          {...bindings.attributes}
-          {...bindings.listeners}
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={disabled}
-          aria-label={`拖动 ${nodeName} 调整位置`}
-          className="mr-1 h-6 w-6 shrink-0 cursor-grab text-muted-foreground hover:bg-transparent active:cursor-grabbing"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>拖动调整位置</TooltipContent>
-    </Tooltip>
-  )
-}
-
-function KnowledgeBaseFolderDropTarget({
-  disabled,
-  folderId,
-}: {
-  disabled?: boolean
-  folderId: string
-}) {
+function KnowledgeBaseRootDropTarget({ disabled }: { disabled?: boolean }) {
   const { isOver, setNodeRef } = useDroppable({
-    id: toFolderDropDndId(folderId),
+    id: ROOT_DROP_DND_ID,
     disabled,
     data: {
-      folderId,
-      type: "folder-drop",
+      type: "root-drop",
     },
   })
 
-  if (disabled) {
-    return null
-  }
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          ref={setNodeRef}
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="放入文件夹"
-          className={cn(
-            "h-6 w-6 shrink-0 text-muted-foreground transition-colors",
-            isOver && "bg-primary/10 text-primary ring-1 ring-primary/30"
-          )}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <FolderInput className="h-3.5 w-3.5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>放入文件夹</TooltipContent>
-    </Tooltip>
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mx-2 mb-1 flex h-9 items-center justify-center gap-2 rounded-md border border-dashed text-xs text-muted-foreground transition-colors",
+        isOver && "border-primary/50 bg-primary/10 text-primary",
+      )}
+    >
+      <FolderInput className="size-4" />
+      放到这里移动至知识库根目录
+    </div>
   )
 }
 
 function SortableKnowledgeBaseTreeNode({
   children,
   disabled,
+  dropPosition,
+  isDropTarget,
   node,
 }: {
   children: (bindings: SortableTreeNodeBindings) => React.ReactNode
   disabled?: boolean
+  dropPosition?: TreeDropPosition | null
+  isDropTarget?: boolean
   node: KnowledgeBaseTreeNode
 }) {
-  const sortable = useSortable({
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
     id: toNodeDndId(node.id),
     disabled,
     data: {
@@ -496,24 +432,30 @@ function SortableKnowledgeBaseTreeNode({
   })
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(sortable.transform),
-    transition: sortable.transition,
+    transform: CSS.Transform.toString(transform),
+    transition,
   }
 
   return (
     <div
-      ref={sortable.setNodeRef}
+      ref={setNodeRef}
       style={style}
       className={cn(
-        "rounded-md",
-        sortable.isDragging && "opacity-45"
+        "relative rounded-md",
+        isDragging && "opacity-45"
       )}
     >
+      {isDropTarget && dropPosition === "before" ? (
+        <div className="pointer-events-none absolute inset-x-2 top-0 z-10 h-0.5 rounded-full bg-primary" />
+      ) : null}
       {children({
-        attributes: sortable.attributes,
-        listeners: sortable.listeners,
-        isDragging: sortable.isDragging,
+        attributes,
+        listeners,
+        isDragging,
       })}
+      {isDropTarget && dropPosition === "after" ? (
+        <div className="pointer-events-none absolute inset-x-2 bottom-0 z-10 h-0.5 rounded-full bg-primary" />
+      ) : null}
     </div>
   )
 }
@@ -660,6 +602,19 @@ function updateNodeName(
   })
 }
 
+function preserveLoadedChildren(
+  currentRoots: KnowledgeBaseTreeNode[],
+  nextRoots: KnowledgeBaseTreeNode[],
+): KnowledgeBaseTreeNode[] {
+  return nextRoots.map((nextNode) => {
+    const currentNode = findTreeNode(currentRoots, nextNode.id)
+    if (!currentNode?.children?.length) {
+      return nextNode
+    }
+    return { ...nextNode, children: currentNode.children }
+  })
+}
+
 type DeleteTarget =
   | {
     type: "folder"
@@ -681,9 +636,8 @@ export function KnowledgeBaseTreePage() {
 
   const [knowledgeBase, setKnowledgeBase] = React.useState<KnowledgeBaseResponse | null>(null)
   const [roots, setRoots] = React.useState<KnowledgeBaseTreeNode[]>([])
-  const [totalFolders, setTotalFolders] = React.useState(0)
-  const [pageIndex, setPageIndex] = React.useState(0)
-  const [pageSize] = React.useState(10)
+  const [visibleRootPages, setVisibleRootPages] = React.useState(1)
+  const [hasMoreRoots, setHasMoreRoots] = React.useState(false)
   const [keyword, setKeyword] = React.useState("")
   const [debouncedKeyword, setDebouncedKeyword] = React.useState("")
   const [articleCreatedDateRange, setArticleCreatedDateRange] = React.useState<DateRange | undefined>()
@@ -719,10 +673,13 @@ export function KnowledgeBaseTreePage() {
   const [createArticleBatchParsing, setCreateArticleBatchParsing] = React.useState(false)
   const [createArticleBatchRunning, setCreateArticleBatchRunning] = React.useState(false)
   const [importDialogOpen, setImportDialogOpen] = React.useState(false)
+  const [markdownImportOpen, setMarkdownImportOpen] = React.useState(false)
+  const [feishuImportOpen, setFeishuImportOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget | null>(null)
   const [activeDragNodeId, setActiveDragNodeId] = React.useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = React.useState<string | null>(null)
+  const [dragOverPosition, setDragOverPosition] = React.useState<TreeDropPosition | null>(null)
   const [movingNodeId, setMovingNodeId] = React.useState<string | null>(null)
   const createArticleFileInputRef = React.useRef<HTMLInputElement | null>(null)
 
@@ -736,8 +693,6 @@ export function KnowledgeBaseTreePage() {
   const articleCreatedDateLabel = hasArticleCreatedDateFilter
     ? `创建日期：${articleCreatedDateFrom} ~ ${articleCreatedDateTo}`
     : "创建日期（全部）"
-  const currentPage = pageIndex + 1
-  const totalPages = Math.max(1, Math.ceil(totalFolders / pageSize))
   const isSearching = debouncedKeyword.length > 0 || hasArticleCreatedDateFilter
   const isCreateArticleBatch = createArticleBatchItems.length > 0
   const createArticleBusy =
@@ -761,7 +716,8 @@ export function KnowledgeBaseTreePage() {
     : "将在根目录创建"
   const dragDisabled = isSearching || loading || saving || Boolean(movingNodeId)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const collisionDetection = React.useCallback<CollisionDetection>((args) => {
     const pointerCollisions = pointerWithin(args)
@@ -825,7 +781,9 @@ export function KnowledgeBaseTreePage() {
   }, [autoExpandedFolderIds, debouncedKeyword])
 
   React.useEffect(() => {
-    setPageIndex(0)
+    setRoots([])
+    setVisibleRootPages(1)
+    setHasMoreRoots(false)
     setKeyword("")
     setDebouncedKeyword("")
     setArticleCreatedDateRange(undefined)
@@ -858,6 +816,7 @@ export function KnowledgeBaseTreePage() {
     setDeleteTarget(null)
     setActiveDragNodeId(null)
     setDragOverNodeId(null)
+    setDragOverPosition(null)
     setMovingNodeId(null)
   }, [knowledgeBaseId])
 
@@ -894,7 +853,7 @@ export function KnowledgeBaseTreePage() {
     }
   }, [knowledgeBaseId])
 
-  const fetchTree = React.useCallback(async () => {
+  const fetchTree = React.useCallback(async (rootPageCount = 1) => {
     if (!knowledgeBaseId) {
       return
     }
@@ -904,24 +863,28 @@ export function KnowledgeBaseTreePage() {
     setNodeLoadErrorById({})
 
     try {
+      const requestedRootCount = ROOT_PAGE_SIZE * rootPageCount
       const res = debouncedKeyword || hasArticleCreatedDateFilter
         ? await knowledgeBaseNodeApi.tree(knowledgeBaseId, {
-          pageNum: pageIndex + 1,
-          pageSize,
+          pageNum: 1,
+          pageSize: requestedRootCount,
           keyword: debouncedKeyword || undefined,
           articleCreatedDateFrom,
           articleCreatedDateTo,
         })
         : await knowledgeBaseNodeApi.roots(knowledgeBaseId, {
-          pageNum: pageIndex + 1,
-          pageSize,
+          pageNum: 1,
+          pageSize: requestedRootCount,
         })
 
-      setRoots(res.data.roots || [])
-      setTotalFolders(res.data.totalFolders ?? 0)
+      const nextRoots = res.data.roots || []
+      setRoots((current) => isSearching
+        ? nextRoots
+        : preserveLoadedChildren(current, nextRoots))
+      setVisibleRootPages(rootPageCount)
+      setHasMoreRoots(!isSearching && (res.data.roots?.length ?? 0) >= requestedRootCount)
     } catch {
-      setRoots([])
-      setTotalFolders(0)
+      setRoots((current) => rootPageCount > 1 ? current : [])
       toast.error("加载目录失败")
     } finally {
       setLoading(false)
@@ -931,20 +894,13 @@ export function KnowledgeBaseTreePage() {
     articleCreatedDateTo,
     debouncedKeyword,
     hasArticleCreatedDateFilter,
+    isSearching,
     knowledgeBaseId,
-    pageIndex,
-    pageSize,
   ])
 
   React.useEffect(() => {
-    void fetchTree()
+    void fetchTree(1)
   }, [fetchTree])
-
-  React.useEffect(() => {
-    if (pageIndex > totalPages - 1) {
-      setPageIndex(totalPages - 1)
-    }
-  }, [pageIndex, totalPages])
 
   const loadChildren = React.useCallback(
     async (nodeId: string) => {
@@ -1018,6 +974,21 @@ export function KnowledgeBaseTreePage() {
       void loadChildren(nodeId)
     })
   }, [expandedIds, isSearching, loadChildren, nodeLoadErrorById, nodeLoadingById, roots])
+
+  React.useEffect(() => {
+    if (!activeDragNodeId || !dragOverNodeId || dragOverPosition !== "inside") {
+      return
+    }
+    const node = findTreeNode(roots, dragOverNodeId)
+    if (node?.type !== "FOLDER" || expandedIds.has(node.id)) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setExpandedIds((current) => new Set(current).add(node.id))
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [activeDragNodeId, dragOverNodeId, dragOverPosition, expandedIds, roots])
 
   const openCreateFolder = React.useCallback((parent: { id: string; name: string } | null) => {
     setCreateFolderParentId(parent?.id ?? null)
@@ -1560,12 +1531,12 @@ export function KnowledgeBaseTreePage() {
       }
 
       if (shouldRefreshRoots) {
-        await fetchTree()
+        await fetchTree(visibleRootPages)
       }
 
       await Promise.all([...folderParentIds].map((parentId) => loadChildren(parentId)))
     },
-    [fetchTree, loadChildren]
+    [fetchTree, loadChildren, visibleRootPages]
   )
 
   const handleDragStart = React.useCallback((event: DragStartEvent) => {
@@ -1574,17 +1545,39 @@ export function KnowledgeBaseTreePage() {
     }
     setActiveDragNodeId(parseNodeDndId(event.active.id))
     setDragOverNodeId(null)
+    setDragOverPosition(null)
   }, [dragDisabled])
 
   const handleDragOver = React.useCallback((event: DragOverEvent) => {
-    setDragOverNodeId(resolveOverNodeId(event.over?.id))
-  }, [])
+    const overNodeId = resolveOverNodeId(event.over?.id)
+    setDragOverNodeId(overNodeId)
+
+    if (event.over?.id === ROOT_DROP_DND_ID) {
+      setDragOverPosition("inside")
+      return
+    }
+
+    const overNode = overNodeId ? findTreeNode(roots, overNodeId) : null
+    const activeNodeId = parseNodeDndId(event.active.id)
+    const canDropInside = Boolean(
+      activeNodeId &&
+      overNode?.type === "FOLDER" &&
+      activeNodeId !== overNode.id &&
+      !isDescendantInLoadedTree(roots, activeNodeId, overNode.id),
+    )
+    setDragOverPosition(resolveTreeDropPosition(
+      event.active.rect.current.translated,
+      event.over?.rect,
+      canDropInside,
+    ))
+  }, [roots])
 
   const handleDragEnd = React.useCallback(async (event: DragEndEvent) => {
     const activeNodeId = parseNodeDndId(event.active.id)
     const overId = event.over?.id
     setActiveDragNodeId(null)
     setDragOverNodeId(null)
+    setDragOverPosition(null)
 
     if (!knowledgeBaseId || dragDisabled || !activeNodeId || !overId) {
       return
@@ -1598,13 +1591,12 @@ export function KnowledgeBaseTreePage() {
     const sourceParentId = activeNode.parentId ?? null
     let targetParentId: string | null
     let targetIndex: number | undefined
-    const overFolderId = parseFolderDropDndId(overId)
 
-    if (overFolderId) {
-      if (overFolderId === sourceParentId) {
+    if (overId === ROOT_DROP_DND_ID) {
+      if (sourceParentId == null) {
         return
       }
-      targetParentId = overFolderId
+      targetParentId = null
       targetIndex = undefined
     } else {
       const overNodeId = parseNodeDndId(overId)
@@ -1617,31 +1609,35 @@ export function KnowledgeBaseTreePage() {
         return
       }
 
-      const shouldDropIntoFolder =
+      const canDropInside =
         overNode.type === "FOLDER" &&
-        overNode.id !== sourceParentId &&
-        isDropInFolderBody(event.active.rect.current.translated, event.over?.rect)
+        activeNodeId !== overNode.id &&
+        !isDescendantInLoadedTree(roots, activeNodeId, overNode.id)
+      const dropPosition = resolveTreeDropPosition(
+        event.active.rect.current.translated,
+        event.over?.rect,
+        canDropInside,
+      )
 
-      if (shouldDropIntoFolder) {
+      if (dropPosition === "inside") {
+        if (overNode.id === sourceParentId) {
+          return
+        }
         targetParentId = overNode.id
         targetIndex = undefined
       } else {
         targetParentId = overNode.parentId ?? null
         const siblings = getSiblingNodes(roots, targetParentId)
-        const overIndex = siblings.findIndex((node) => node.id === overNodeId)
-        if (overIndex < 0) {
+        const resolvedIndex = resolveTreeTargetIndex(
+          siblings.map((node) => node.id),
+          sourceParentId === targetParentId ? activeNodeId : "",
+          overNodeId,
+          dropPosition,
+        )
+        if (resolvedIndex == null) {
           return
         }
-
-        const pageOffset = targetParentId == null ? pageIndex * pageSize : 0
-        targetIndex = pageOffset + overIndex
-
-        if (sourceParentId === targetParentId) {
-          const activeIndex = siblings.findIndex((node) => node.id === activeNodeId)
-          if (activeIndex < 0 || activeIndex === overIndex) {
-            return
-          }
-        }
+        targetIndex = resolvedIndex
       }
     }
 
@@ -1668,8 +1664,6 @@ export function KnowledgeBaseTreePage() {
   }, [
     dragDisabled,
     knowledgeBaseId,
-    pageIndex,
-    pageSize,
     refreshAfterNodeMove,
     roots,
   ])
@@ -1692,43 +1686,125 @@ export function KnowledgeBaseTreePage() {
       !!activeDragNodeId &&
       activeDragNodeId !== node.id &&
       !isDescendantInLoadedTree(roots, activeDragNodeId, node.id)
-    const isFolderBodyDropActive = canDropIntoFolder && dragOverNodeId === node.id
+    const isDropTarget = dragOverNodeId === node.id
+    const isFolderBodyDropActive =
+      canDropIntoFolder && isDropTarget && dragOverPosition === "inside"
+    const menuActions: Array<{
+      label: string
+      run: () => void
+      disabled?: boolean
+      destructive?: boolean
+      separator?: boolean
+    }> = isFolder
+      ? [
+          { label: "新建文件夹", run: () => openCreateFolder({ id: node.id, name: node.name }) },
+          { label: "新建文章", run: () => openCreateArticle({ id: node.id, name: node.name }) },
+          { label: "重命名", separator: true, run: () => openRenameFolder(node) },
+          {
+            label: "删除",
+            destructive: true,
+            run: () => {
+              setDeleteTarget({
+                type: "folder",
+                nodeId: node.id,
+                name: node.name,
+                parentId: node.parentId,
+              })
+              setDeleteOpen(true)
+            },
+          },
+        ]
+      : [
+          {
+            label: "打开",
+            disabled: !node.articleId,
+            run: () => {
+              if (!knowledgeBaseId || !node.articleId) return
+              navigate(knowledgeBaseArticlePath(knowledgeBaseId, node.articleId))
+            },
+          },
+          {
+            label: "生成思维导图",
+            disabled: !node.articleId,
+            run: () => {
+              if (!knowledgeBaseId || !node.articleId) return
+              navigate(knowledgeBaseArticleMindMapPath(knowledgeBaseId, node.articleId))
+            },
+          },
+          {
+            label: "复制文章ID",
+            disabled: !node.articleId,
+            run: () => {
+              if (!node.articleId) return
+              void navigator.clipboard.writeText(node.articleId)
+                .then(() => notify("已复制文章 ID"))
+                .catch(() => toast.error("复制失败"))
+            },
+          },
+          {
+            label: "删除",
+            destructive: true,
+            disabled: !node.articleId,
+            separator: true,
+            run: () => {
+              if (!node.articleId) return
+              setDeleteTarget({
+                type: "article",
+                articleId: node.articleId,
+                nodeId: node.id,
+                name: node.name,
+                parentId: node.parentId,
+              })
+              setDeleteOpen(true)
+            },
+          },
+        ]
 
     return (
-      <SortableKnowledgeBaseTreeNode key={node.id} node={node} disabled={dragDisabled}>
+      <SortableKnowledgeBaseTreeNode
+        key={node.id}
+        node={node}
+        disabled={dragDisabled}
+        dropPosition={dragOverPosition}
+        isDropTarget={isDropTarget}
+      >
         {(dragBindings) => (
           <TreeNode
             nodeId={node.id}
             level={level}
             isLast={isLast}
             parentPath={parentPath}
+            role="treeitem"
+            aria-expanded={isFolder ? isExpanded : undefined}
+            aria-level={level + 1}
           >
-            <TreeNodeTrigger
-              className={cn(
-                "w-full",
-                isFolderBodyDropActive && "bg-primary/10 ring-1 ring-primary/25",
-                movingNodeId === node.id && "opacity-60"
-              )}
-              style={{ paddingLeft: 8 }}
-              onClick={() => {
-                if (isFolder) {
-                  if (!hasChildren) return
-                  if (isSearching) return
-                  if (!isExpanded) {
-                    void loadChildren(node.id)
-                  }
-                  return
-                }
-                if (!knowledgeBaseId) return
-                if (!node.articleId) return
-                navigate(knowledgeBaseArticlePath(knowledgeBaseId, node.articleId))
-              }}
-            >
-              <KnowledgeBaseDragHandle
-                bindings={dragBindings}
-                disabled={dragDisabled}
-                nodeName={node.name}
-              />
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <TreeNodeTrigger
+                  {...dragBindings.attributes}
+                  {...dragBindings.listeners}
+                  className={cn(
+                    "min-h-9 w-full cursor-grab px-2 py-1.5 active:cursor-grabbing",
+                    dragDisabled && "cursor-pointer active:cursor-pointer",
+                    isFolderBodyDropActive && "bg-primary/10 ring-1 ring-inset ring-primary/30",
+                    movingNodeId === node.id && "opacity-60"
+                  )}
+                  style={{ paddingLeft: 8 }}
+                  whileTap={undefined}
+                  onClick={() => {
+                    if (isFolder) {
+                      if (!hasChildren) return
+                      if (isSearching) return
+                      if (!isExpanded) {
+                        void loadChildren(node.id)
+                      }
+                      return
+                    }
+                    if (!knowledgeBaseId) return
+                    if (!node.articleId) return
+                    navigate(knowledgeBaseArticlePath(knowledgeBaseId, node.articleId))
+                  }}
+                >
               <div
                 aria-hidden="true"
                 className="shrink-0"
@@ -1736,7 +1812,10 @@ export function KnowledgeBaseTreePage() {
               />
 
               {isFolder ? (
-                <TreeExpander hasChildren={hasChildren} />
+                <TreeExpander
+                  hasChildren={hasChildren}
+                  onPointerDown={(event) => event.stopPropagation()}
+                />
               ) : (
                 <div className="w-4 h-4 mr-1" />
               )}
@@ -1756,104 +1835,55 @@ export function KnowledgeBaseTreePage() {
 
               {!isFolder ? <ArticleStatusBadges status={node.status} /> : null}
 
-              <div className="ml-auto shrink-0 flex items-center gap-1">
-                {isFolder && activeDragNodeId ? (
-                  <KnowledgeBaseFolderDropTarget
-                    disabled={!canDropIntoFolder}
-                    folderId={node.id}
-                  />
-                ) : null}
+              <div
+                className="ml-auto flex shrink-0 items-center gap-1"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
                 <ActionMenu
                   trigger={
-                    <Button variant="ghost" size="icon" className="size-9 md:size-6" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`打开 ${node.name} 的操作菜单`}
+                      className="size-9 md:size-7 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <MoreHorizontal className="size-4 md:size-3" />
                     </Button>
                   }
                   align="end"
                 >
-                  {isFolder ? (
-                    <>
-                      <DropdownMenuItem onClick={() => openCreateFolder({ id: node.id, name: node.name })}>
-                        新建文件夹
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => openCreateArticle({ id: node.id, name: node.name })}>
-                        新建文章
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => openRenameFolder(node)}>
-                        重命名
-                      </DropdownMenuItem>
+                  {menuActions.map((action) => (
+                    <React.Fragment key={action.label}>
+                      {action.separator ? <DropdownMenuSeparator /> : null}
                       <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => {
-                          setDeleteTarget({
-                            type: "folder",
-                            nodeId: node.id,
-                            name: node.name,
-                            parentId: node.parentId,
-                          })
-                          setDeleteOpen(true)
-                        }}
+                        variant={action.destructive ? "destructive" : "default"}
+                        disabled={action.disabled}
+                        onClick={action.run}
                       >
-                        删除
+                        {action.label}
                       </DropdownMenuItem>
-                    </>
-                  ) : (
-                    <>
-                      <DropdownMenuItem
-                        disabled={!node.articleId}
-                        onClick={() => {
-                          if (!knowledgeBaseId) return
-                          if (!node.articleId) return
-                          navigate(knowledgeBaseArticlePath(knowledgeBaseId, node.articleId))
-                        }}
-                      >
-                        打开
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={!node.articleId}
-                        onClick={() => {
-                          if (!knowledgeBaseId) return
-                          if (!node.articleId) return
-                          navigate(knowledgeBaseArticleMindMapPath(knowledgeBaseId, node.articleId))
-                        }}
-                      >
-                        生成思维导图
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        disabled={!node.articleId}
-                        onClick={() => {
-                          if (!node.articleId) return
-                          void navigator.clipboard.writeText(node.articleId)
-                            .then(() => notify("已复制文章 ID"))
-                            .catch(() => toast.error("复制失败"))
-                        }}
-                      >
-                        复制文章ID
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        disabled={!node.articleId}
-                        onClick={() => {
-                          if (!node.articleId) return
-                          setDeleteTarget({
-                            type: "article",
-                            articleId: node.articleId,
-                            nodeId: node.id,
-                            name: node.name,
-                            parentId: node.parentId,
-                          })
-                          setDeleteOpen(true)
-                        }}
-                      >
-                        删除
-                      </DropdownMenuItem>
-                    </>
-                  )}
+                    </React.Fragment>
+                  ))}
                 </ActionMenu>
               </div>
-            </TreeNodeTrigger>
+                </TreeNodeTrigger>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-48">
+                {menuActions.map((action) => (
+                  <React.Fragment key={action.label}>
+                    {action.separator ? <ContextMenuSeparator /> : null}
+                    <ContextMenuItem
+                      variant={action.destructive ? "destructive" : "default"}
+                      disabled={action.disabled}
+                      onSelect={action.run}
+                    >
+                      {action.label}
+                    </ContextMenuItem>
+                  </React.Fragment>
+                ))}
+              </ContextMenuContent>
+            </ContextMenu>
 
             {isFolder && hasChildren && (
               <TreeNodeContent hasChildren={hasChildren}>
@@ -1889,15 +1919,7 @@ export function KnowledgeBaseTreePage() {
         )}
       </SortableKnowledgeBaseTreeNode>
     )
-  }, [activeDragNodeId, dragDisabled, dragOverNodeId, expandedIds, isSearching, knowledgeBaseId, loadChildren, movingNodeId, navigate, nodeLoadErrorById, nodeLoadingById, openCreateArticle, openCreateFolder, openRenameFolder, roots])
-
-  const handlePageChange = React.useCallback(
-    (nextPageIndex: number) => {
-      if (nextPageIndex < 0 || nextPageIndex >= totalPages) return
-      setPageIndex(nextPageIndex)
-    },
-    [totalPages],
-  )
+  }, [activeDragNodeId, dragDisabled, dragOverNodeId, dragOverPosition, expandedIds, isSearching, knowledgeBaseId, loadChildren, movingNodeId, navigate, nodeLoadErrorById, nodeLoadingById, openCreateArticle, openCreateFolder, openRenameFolder, roots])
 
   return (
     <AstryxProvider>
@@ -1945,12 +1967,32 @@ export function KnowledgeBaseTreePage() {
                 <FolderPlus className="size-4" />
                 新建文件夹
               </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!knowledgeBaseId}
-                onClick={() => setImportDialogOpen(true)}
-              >
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" disabled={!knowledgeBaseId || loading || saving}>
                 <FileUp className="size-4" />
-                导入文档
+                导入
+                <ChevronDown className="size-4 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => setMarkdownImportOpen(true)}>
+                <FolderInput className="size-4" />
+                Markdown 文件或目录
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportDialogOpen(true)}>
+                <FileUp className="size-4" />
+                PDF 文档
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFeishuImportOpen(true)}>
+                <FolderOpen className="size-4" />
+                飞书目录或文档
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate(dashboardRoutes.imports)}>
+                查看导入任务
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1972,7 +2014,7 @@ export function KnowledgeBaseTreePage() {
             className="sm:w-[360px] lg:w-[420px]"
             onChange={(e) => {
               setKeyword(e.target.value)
-              setPageIndex(0)
+              setVisibleRootPages(1)
             }}
           />
 
@@ -2015,7 +2057,7 @@ export function KnowledgeBaseTreePage() {
                       const normalized = normalizeDateRange(next)
                       if (normalized?.from && normalized?.to) {
                         setArticleCreatedDateRange(normalized)
-                        setPageIndex(0)
+                        setVisibleRootPages(1)
                         setArticleCreatedDateOpen(false)
                         setArticleCreatedDateDraftRange(undefined)
                       }
@@ -2048,7 +2090,7 @@ export function KnowledgeBaseTreePage() {
                   setArticleCreatedDateRange(undefined)
                   setArticleCreatedDateDraftRange(undefined)
                   setArticleCreatedDateOpen(false)
-                  setPageIndex(0)
+                  setVisibleRootPages(1)
                 }}
               >
                 <X className="h-4 w-4" />
@@ -2058,32 +2100,26 @@ export function KnowledgeBaseTreePage() {
           </div>
         </div>
 
-        {loading ? (
-          <div
-            className="flex min-h-56 items-center justify-center py-10"
-            role="status"
-            aria-live="polite"
-            aria-label="正在加载知识库"
-          >
-            <OrbitingCircles
-              radius={52}
-              duration={12}
-              iconSize={36}
-              className="text-muted-foreground"
-            >
-              <span className="flex size-9 items-center justify-center rounded-full border border-border/60 bg-background shadow-xs">
-                <Folder className="size-4" />
-              </span>
-              <span className="flex size-9 items-center justify-center rounded-full border border-border/60 bg-background shadow-xs">
-                <FileText className="size-4" />
-              </span>
-              <span className="flex size-9 items-center justify-center rounded-full border border-border/60 bg-background shadow-xs">
-                <BookOpen className="size-4" />
-              </span>
-            </OrbitingCircles>
+        <div className="min-h-64 overflow-hidden rounded-lg border bg-background">
+          <div className="flex min-h-10 items-center justify-between border-b bg-muted/20 px-3 py-2">
+            <span className="text-sm font-medium">目录</span>
+            <span className="text-xs text-muted-foreground">
+              {isSearching ? "筛选结果中暂不可移动" : "拖动节点可排序或移动到文件夹"}
+            </span>
+          </div>
+
+        {loading && roots.length === 0 ? (
+          <div className="space-y-2 p-3" role="status" aria-label="正在加载知识库">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div
+                key={index}
+                className="h-9 animate-pulse rounded-md bg-muted"
+                style={{ width: `${Math.max(42, 78 - index * 5)}%` }}
+              />
+            ))}
           </div>
         ) : roots.length === 0 ? (
-          <Empty className="border border-dashed py-10">
+          <Empty className="py-10">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FolderOpen />
@@ -2108,7 +2144,7 @@ export function KnowledgeBaseTreePage() {
                     setKeyword("")
                     setArticleCreatedDateRange(undefined)
                     setArticleCreatedDateDraftRange(undefined)
-                    setPageIndex(0)
+                    setVisibleRootPages(1)
                   }}
                 >
                   清除筛选
@@ -2145,6 +2181,7 @@ export function KnowledgeBaseTreePage() {
             onDragCancel={() => {
               setActiveDragNodeId(null)
               setDragOverNodeId(null)
+              setDragOverPosition(null)
             }}
             onDragEnd={(event) => {
               void handleDragEnd(event)
@@ -2152,14 +2189,34 @@ export function KnowledgeBaseTreePage() {
           >
             <SortableContext items={visibleNodeDndIds} strategy={verticalListSortingStrategy}>
               <TreeProvider
-                className="flex flex-col gap-1"
-                showLines={false}
+                className="flex flex-col"
+                showLines
                 indent={TREE_NODE_INDENT_PX}
                 expandedIds={expandedIds}
                 onExpandedChange={setExpandedIds}
               >
-                <TreeView>
+                <TreeView role="tree" aria-label={`${knowledgeBase?.name || "知识库"}目录树`}>
+                  {activeDragNodeId && activeDragNode?.parentId != null ? (
+                    <KnowledgeBaseRootDropTarget />
+                  ) : null}
                   {roots.map((root, index) => renderNode(root, 0, index === roots.length - 1))}
+                  {!isSearching && hasMoreRoots ? (
+                    <div className="border-t px-2 pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-muted-foreground"
+                        disabled={loading}
+                        onClick={() => void fetchTree(visibleRootPages + 1)}
+                      >
+                        {loading ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : null}
+                        {loading ? "正在加载…" : "加载更多"}
+                      </Button>
+                    </div>
+                  ) : null}
                 </TreeView>
               </TreeProvider>
             </SortableContext>
@@ -2168,16 +2225,7 @@ export function KnowledgeBaseTreePage() {
             </DragOverlay>
           </DndContext>
         )}
-      </div>
-
-      <div className="py-3 mt-2">
-        <AppPagination
-          page={pageIndex}
-          totalPages={totalPages}
-          total={totalFolders}
-          pageSize={pageSize}
-          onChange={handlePageChange}
-        />
+        </div>
       </div>
 
       <ModalShell
@@ -2599,12 +2647,26 @@ export function KnowledgeBaseTreePage() {
       />
 
       {knowledgeBaseId ? (
-        <DocumentImportDialog
-          open={importDialogOpen}
-          onOpenChange={setImportDialogOpen}
-          knowledgeBaseId={knowledgeBaseId}
-          onViewJobs={() => navigate(dashboardRoutes.imports)}
-        />
+        <>
+          <MarkdownImportDialog
+            open={markdownImportOpen}
+            onOpenChange={setMarkdownImportOpen}
+            knowledgeBaseId={knowledgeBaseId}
+            onCreated={() => navigate(dashboardRoutes.imports)}
+          />
+          <DocumentImportDialog
+            open={importDialogOpen}
+            onOpenChange={setImportDialogOpen}
+            knowledgeBaseId={knowledgeBaseId}
+            onViewJobs={() => navigate(dashboardRoutes.imports)}
+          />
+          <FeishuImportDialog
+            open={feishuImportOpen}
+            onOpenChange={setFeishuImportOpen}
+            knowledgeBaseId={knowledgeBaseId}
+            onCreated={() => navigate(dashboardRoutes.imports)}
+          />
+        </>
       ) : null}
     </div>
     </AstryxProvider>

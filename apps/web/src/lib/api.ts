@@ -1,6 +1,8 @@
 import axios, { type AxiosResponse } from "axios"
 
 import { installDemoAdapter } from "@/lib/demo/demo-adapter"
+import type { SiteFontConfig } from "@/lib/font-config"
+import type { SiteLogoAsset } from "@/lib/site-branding"
 
 const api = axios.create({
   baseURL: "/api",
@@ -23,7 +25,6 @@ export interface ApiErrorResponse {
 function isAuthEndpoint(url: string) {
   return url.includes("/auth/login")
     || url.includes("/auth/register")
-    || url.includes("/auth/linuxdo/callback")
     || url.includes("/auth/two-factor/")
 }
 
@@ -73,10 +74,6 @@ export interface UserResponse {
   id: string
   email: string
   systemRole: SystemRole
-  userType: string
-  linuxDoBound: boolean
-  linuxDoUsername: string | null
-  linuxDoEmail: string | null
   username: string | null
   nickname: string | null
   avatar: string | null
@@ -90,13 +87,11 @@ export interface UserProfileResponse extends UserResponse {
 }
 
 export interface AuthResponse {
-  mode?: "login" | "bind"
   token: string
   user: UserResponse
 }
 
 export interface AuthLoginResponse {
-  mode?: "login" | "bind"
   token?: string
   user?: UserResponse
   twoFactorRequired?: boolean
@@ -147,7 +142,6 @@ export const authApi = {
   profile: () => api.get<UserProfileResponse>("/auth/profile"),
   updateProfile: (data: UserProfileUpdateRequest) => api.post<UserProfileResponse>("/auth/profile/update", data),
   changePassword: (data: ChangePasswordRequest) => api.post<void>("/auth/password/change", data),
-  linuxDoCallback: (code: string, state?: string | null) => api.post<AuthResponse>("/auth/linuxdo/callback", { code, state }),
 }
 
 export const twoFactorApi = {
@@ -249,7 +243,6 @@ export interface AdminUserItem {
   id: string
   email: string
   systemRole: SystemRole
-  userType: string
   username?: string | null
   nickname?: string | null
   avatar?: string | null
@@ -288,6 +281,10 @@ export interface AboutProfileResponse {
   updatedAt?: string | null
 }
 
+export interface PublicAboutProfileResponse extends AboutProfileResponse {
+  avatar: string | null
+}
+
 export interface AboutProfileUpdateRequest {
   displayName: string
   roleTitle: string
@@ -302,7 +299,7 @@ export interface AboutProfileUpdateRequest {
 }
 
 export const publicAboutProfileApi = {
-  detail: () => api.get<AboutProfileResponse>("/public/about/profile"),
+  detail: () => api.get<PublicAboutProfileResponse>("/public/about/profile"),
 }
 
 export const adminAboutProfileApi = {
@@ -608,21 +605,30 @@ export const adminSiteGraphApi = {
 
 export interface SiteAppearanceResponse {
   publicQaEnabled: boolean
+  siteName: string
+  siteDescription: string
+  sidebarTitle: string
+  siteLogo: SiteLogoAsset | null
+  fontConfig: SiteFontConfig
   createdAt?: string | null
   updatedAt?: string | null
 }
 
 export interface SiteAppearanceUpdateRequest {
-  publicQaEnabled: boolean
-}
-
-export const publicSiteAppearanceApi = {
-  detail: () => api.get<SiteAppearanceResponse>("/public/appearance"),
+  siteName: string
+  siteDescription: string
+  sidebarTitle: string
+  siteLogoObjectKey?: string | null
+  fontConfig: Pick<SiteFontConfig, "interfaceFont" | "contentFont" | "monospaceFont">
 }
 
 export const adminSiteAppearanceApi = {
   detail: () => api.get<SiteAppearanceResponse>("/admin/appearance"),
   update: (data: SiteAppearanceUpdateRequest) => api.post<SiteAppearanceResponse>("/admin/appearance", data),
+  registerFont: (data: { name: string; objectKey: string }) =>
+    api.post<SiteAppearanceResponse>("/admin/appearance/fonts/register", data),
+  deleteFont: (id: string) =>
+    api.post<SiteAppearanceResponse>("/admin/appearance/fonts/delete", { id }),
 }
 
 export type AgentApiKeyScope =
@@ -1784,6 +1790,42 @@ export interface PublicArticleListResponse {
   items: PublicArticleListItem[]
 }
 
+export type PublicLibraryBreadcrumb = {
+  type: "KNOWLEDGE_BASE" | "FOLDER"
+  id: string
+  name: string
+}
+
+export type PublicLibraryItem =
+  | {
+    type: "KNOWLEDGE_BASE"
+    id: string
+    name: string
+    description?: string | null
+    hasChildren: boolean
+  }
+  | {
+    type: "FOLDER"
+    id: string
+    name: string
+    hasChildren: boolean
+  }
+  | (PublicArticleListItem & { type: "ARTICLE" })
+
+export interface PublicLibraryChildrenResponse {
+  current: {
+    type: "ROOT" | "KNOWLEDGE_BASE" | "FOLDER"
+    id: string | null
+    name: string
+    description?: string | null
+  }
+  breadcrumbs: PublicLibraryBreadcrumb[]
+  items: PublicLibraryItem[]
+  pageNum: number
+  pageSize: number
+  hasMore: boolean
+}
+
 export interface PublicArticleSearchItem extends PublicArticleListItem {
   score: number
 }
@@ -1955,6 +1997,24 @@ export const publicArticleShareApi = {
   resetClientCacheForTests: invalidatePublicArticleClientCache,
 }
 
+export const publicLibraryApi = {
+  children: (params: {
+    knowledgeBaseId?: string
+    parentId?: string
+    pageNum?: number
+    pageSize?: number
+    signal?: AbortSignal
+  }) => api.get<PublicLibraryChildrenResponse>("/public/library/children", {
+    params: {
+      ...(params.knowledgeBaseId ? { knowledgeBaseId: params.knowledgeBaseId } : {}),
+      ...(params.parentId ? { parentId: params.parentId } : {}),
+      ...(params.pageNum ? { pageNum: params.pageNum } : {}),
+      ...(params.pageSize ? { pageSize: params.pageSize } : {}),
+    },
+    signal: params.signal,
+  }),
+}
+
 // ===== 阅后即焚公开访问（不缓存、不预取，焚毁靠用户显式确认触发）=====
 
 export type PublicBurnState = "ACTIVE" | "BURNED" | "REVOKED" | "EXPIRED" | "NOT_FOUND"
@@ -2024,9 +2084,9 @@ export const uploadApi = {
     api.post<PresignGetResponse>("/public/upload/presign-get", { objectKey }),
 }
 
-// ===== 文档导入（PDF / Word → 多模态 → 文章） =====
+// ===== 统一文档导入 =====
 
-export type DocumentImportSourceType = "pdf"
+export type DocumentImportSourceType = "markdown" | "pdf" | "feishu"
 
 /** 页内容来源：pdf = pdf-inspector 本地抽取，vision = 多模态识别兜底 */
 export type DocumentImportExtractedBy = "pdf" | "vision"
@@ -2035,28 +2095,42 @@ export type DocumentImportJobStatus =
   | "pending"
   | "processing"
   | "completed"
+  | "partial"
   | "failed"
   | "canceled"
 
 export type DocumentImportPageStatus = "pending" | "done" | "failed"
 
-export interface DocumentImportJobResponse {
+export interface DocumentImportBatchResponse {
   id: string
   knowledgeBaseId: string
   knowledgeBaseName: string | null
   parentNodeId: string | null
   parentFolderName: string | null
   sourceType: DocumentImportSourceType
+  sourceName: string
+  totalItems: number
+  completedItems: number
+  failedItems: number
+  skippedItems: number
+  status: DocumentImportJobStatus
+  error: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DocumentImportItemResponse {
+  id: string
+  batchId: string | null
+  sourceType: DocumentImportSourceType
   fileName: string
+  relativePath: string | null
   title: string
   totalPages: number
   processedPages: number
-  donePages: number
-  failedPages: number
-  pendingPages: number
   status: DocumentImportJobStatus
-  modelConfigId: string | null
   articleId: string | null
+  attemptCount: number
   error: string | null
   createdAt: string
   updatedAt: string
@@ -2075,22 +2149,13 @@ export interface DocumentImportPageResponse {
 export interface DocumentImportCreateRequest {
   knowledgeBaseId: string
   parentId?: string | null
-  fileName: string
-  title: string
-  /** 原始 PDF 预签名直传后的对象 key */
-  sourceKey: string
-  modelConfigId?: string | null
-  concurrency?: number
+  sourceType: DocumentImportSourceType
+  input: unknown
 }
 
 export interface DocumentImportCreateResponse {
-  job: DocumentImportJobResponse
-  /** 需要多模态兜底的 1-indexed 页码；为空表示本地抽取已全量完成 */
-  ocrPageNos: number[]
-  /** 检测到表格或多栏排版 */
-  isComplex: boolean
-  /** 无 OCR 页时服务端已直接生成文章 */
-  articleId: string | null
+  batch: DocumentImportBatchResponse
+  queuedItems: number
 }
 
 export interface DocumentImportConvertResponse {
@@ -2100,8 +2165,10 @@ export interface DocumentImportConvertResponse {
 }
 
 export const documentImportApi = {
-  createJob: (data: DocumentImportCreateRequest) =>
+  createBatch: (data: DocumentImportCreateRequest) =>
     api.post<DocumentImportCreateResponse>("/kb/import/create", data),
+  inspectPdf: (data: { sourceKey: string }) =>
+    api.post<{ totalPages: number; ocrPageNos: number[]; isComplex: boolean }>("/kb/import/pdf-inspect", data),
   attachOcrPages: (data: {
     jobId: string
     pages: { pageNo: number; imageKey: string }[]
@@ -2111,21 +2178,25 @@ export const documentImportApi = {
     api.post<DocumentImportConvertResponse>("/kb/import/page-convert", data),
   retryPage: (data: { jobId: string; pageNo: number }) =>
     api.post<DocumentImportConvertResponse>("/kb/import/retry-page", data),
-  retryFailedPages: (data: { jobId: string }) =>
+  retryFailedPages: (data: { batchId: string }) =>
     api.post<{ retried: number; status: DocumentImportJobStatus }>("/kb/import/retry-failed", data),
   finalize: (data: { jobId: string }) =>
     api.post<{ articleId: string; nodeId: string | null }>("/kb/import/finalize", data),
-  cancel: (data: { jobId: string }) =>
+  cancel: (data: { batchId: string }) =>
     api.post<{ id: string; status: DocumentImportJobStatus }>("/kb/import/cancel", data),
   deleteMany: (data: { ids: string[] }) =>
     api.post<{ deleted: string[] }>("/kb/import/delete", data),
   list: (data: { knowledgeBaseId?: string; pageNum?: number; pageSize?: number }) =>
-    api.post<TableDataInfo<DocumentImportJobResponse>>("/kb/import/list", data),
-  detail: (data: { jobId: string }) =>
-    api.post<{ job: DocumentImportJobResponse; pages: DocumentImportPageResponse[] }>(
-      "/kb/import/detail",
-      data,
-    ),
+    api.post<TableDataInfo<DocumentImportBatchResponse>>("/kb/import/list", data),
+  detail: (data: { batchId: string; pageNum?: number; pageSize?: number }) =>
+    api.post<{ batch: DocumentImportBatchResponse; items: TableDataInfo<DocumentImportItemResponse> }>("/kb/import/detail", data),
+  itemDetail: (data: { itemId: string }) =>
+    api.post<{ item: DocumentImportItemResponse; pages: DocumentImportPageResponse[] }>("/kb/import/item-detail", data),
+}
+
+export const feishuImportApi = {
+  status: () => api.get<{ configured: boolean; connected: boolean; displayName: string | null }>("/integrations/feishu/status"),
+  disconnect: () => api.post<{ disconnected: boolean }>("/integrations/feishu/disconnect"),
 }
 
 // 仪表盘总览相关类型

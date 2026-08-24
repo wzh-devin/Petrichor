@@ -6,6 +6,10 @@ import { HttpError } from "@/server/http/response"
 import { stripS4KeyPrefix } from "@/server/upload/s3-presign"
 
 const EXT_MIME: Record<string, string> = {
+    ".otf": "font/otf",
+    ".ttf": "font/ttf",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
     ".gif": "image/gif",
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",

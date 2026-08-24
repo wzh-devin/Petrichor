@@ -237,7 +237,7 @@ export function SiteGraphExplorer({ payload, onNavigate, className }: SiteGraphE
                         value={keyword}
                         onChange={(event) => setKeyword(event.target.value)}
                         placeholder="搜索节点 / 属性"
-                        className="min-w-0 flex-1 rounded-md border border-foreground/10 bg-background/40 px-2.5 py-1.5 text-sm outline-none backdrop-blur-sm focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        className="min-w-0 flex-1 rounded-md border border-foreground/10 bg-background/40 px-2.5 py-1.5 text-sm outline-none backdrop-blur-sm focus-visible:border-foreground focus-visible:ring-0"
                     />
                     <button
                         type="button"
@@ -291,7 +291,7 @@ export function SiteGraphExplorer({ payload, onNavigate, className }: SiteGraphE
             </div>
             </aside>
 
-            <div ref={graphPanelRef} className="site-graph-panel relative min-h-[24rem] flex-1 overflow-hidden rounded-xl">
+            <div ref={graphPanelRef} className="site-graph-panel relative min-h-[24rem] flex-1 overflow-hidden rounded-xl lg:min-h-0">
                 <div ref={stageRef} className="site-graph-stage">
                     <div ref={mountRef} className="site-graph-mount" />
                 </div>

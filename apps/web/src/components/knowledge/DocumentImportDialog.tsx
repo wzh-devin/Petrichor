@@ -60,8 +60,15 @@ interface ImportItem {
 
 interface ImportItemResult {
   ok: boolean
-  /** 需要多模态兜底的页数，0 表示纯本地抽取 */
   ocrPages: number
+  entry?: {
+    fileName: string
+    title: string
+    sourceKey: string
+    relativePath: string
+    modelConfigId: string | null
+    ocrPages: { pageNo: number; imageKey: string }[]
+  }
 }
 
 interface FlatFolderOption {
@@ -298,33 +305,32 @@ export function DocumentImportDialog({
         updateItem(item.id, { status: "uploading", pageDone: 0, pageTotal: 0, error: undefined })
         const sourceKey = await uploadSourcePdf(item.file)
 
-        // 2) 服务端 pdf-inspector 逐页抽取；无扫描页时这一步就已经生成文章
+        // 2) 服务端检查文字层；入队前准备完扫描页图片，之后刷新页面也不会中断任务。
         updateItem(item.id, { status: "extracting" })
-        const createRes = await documentImportApi.createJob({
-          knowledgeBaseId,
-          parentId,
-          fileName: item.file.name,
-          title: trimmedTitle,
-          sourceKey,
-          modelConfigId,
-          concurrency,
-        })
-        const { job, ocrPageNos, articleId } = createRes.data
-        const jobId = job.id
-        onJobCreated?.(jobId)
+        const inspectRes = await documentImportApi.inspectPdf({ sourceKey })
+        const { ocrPageNos, totalPages } = inspectRes.data
 
         if (ocrPageNos.length === 0) {
           updateItem(item.id, {
-            status: "done",
-            jobId,
+            status: "sending",
             ocrPages: 0,
-            articleId,
             title: trimmedTitle,
-            pageDone: job.totalPages,
-            pageTotal: job.totalPages,
+            pageDone: totalPages,
+            pageTotal: totalPages,
             error: undefined,
           })
-          return { ok: true, ocrPages: 0 }
+          return {
+            ok: true,
+            ocrPages: 0,
+            entry: {
+              fileName: item.file.name,
+              title: trimmedTitle,
+              sourceKey,
+              relativePath: item.file.name,
+              modelConfigId,
+              ocrPages: [],
+            },
+          }
         }
 
         // 3) 只有扫描页需要栅格化 + 走多模态
@@ -355,23 +361,31 @@ export function DocumentImportDialog({
         })
         pages.sort((a, b) => a.pageNo - b.pageNo)
 
-        await documentImportApi.attachOcrPages({ jobId, pages, concurrency })
         updateItem(item.id, {
-          status: "done",
-          jobId,
+          status: "sending",
           ocrPages: ocrPageNos.length,
-          articleId: null,
           title: trimmedTitle,
           error: undefined,
         })
-        return { ok: true, ocrPages: ocrPageNos.length }
+        return {
+          ok: true,
+          ocrPages: ocrPageNos.length,
+          entry: {
+            fileName: item.file.name,
+            title: trimmedTitle,
+            sourceKey,
+            relativePath: item.file.name,
+            modelConfigId,
+            ocrPages: pages,
+          },
+        }
       } catch (error) {
         const message = resolveApiErrorMessage(error, "导入失败")
         updateItem(item.id, { status: "failed", error: message })
         return { ok: false, ocrPages: 0 }
       }
     },
-    [concurrency, knowledgeBaseId, modelConfigId, onJobCreated, parentId, updateItem]
+    [concurrency, modelConfigId, updateItem]
   )
 
   const runImport = React.useCallback(
@@ -388,33 +402,53 @@ export function DocumentImportDialog({
         )
       )
 
-      let articles = 0
-      let queued = 0
+      const prepared: NonNullable<ImportItemResult["entry"]>[] = []
       let failed = 0
       // 文件之间串行处理，单个文件内部的扫描页按 concurrency 并行上传
       for (const target of targets) {
         const result = await processItem(target)
         if (!result.ok) failed += 1
-        else if (result.ocrPages > 0) queued += 1
-        else articles += 1
+        else if (result.entry) prepared.push(result.entry)
       }
 
+      let queued = 0
+      if (prepared.length > 0) {
+        try {
+          const response = await documentImportApi.createBatch({
+            knowledgeBaseId,
+            parentId,
+            sourceType: "pdf",
+            input: { entries: prepared },
+          })
+          queued = prepared.length
+          onJobCreated?.(response.data.batch.id)
+          setItems((current) => current.map((item) =>
+            targets.some((target) => target.id === item.id) && item.status === "sending"
+              ? { ...item, status: "done", jobId: response.data.batch.id }
+              : item
+          ))
+        } catch (error) {
+          failed += prepared.length
+          const message = resolveApiErrorMessage(error, "创建导入任务失败")
+          setItems((current) => current.map((item) =>
+            targets.some((target) => target.id === item.id) && item.status === "sending"
+              ? { ...item, status: "failed", error: message }
+              : item
+          ))
+        }
+      }
       setRunning(false)
 
       if (failed === 0) {
-        toast.success(
-          queued === 0
-            ? `已导入 ${articles} 篇文章`
-            : `已完成 ${articles + queued} 个文档，其中 ${queued} 个含扫描页需后台识别`
-        )
-        setNotice({ articles, queued })
+        toast.success(`已创建导入批次，共 ${queued} 个 PDF`)
+        setNotice({ articles: 0, queued })
         onOpenChange(false)
         resetState()
       } else {
-        toast.error(`成功 ${articles + queued} 个，失败 ${failed} 个，可重试失败项`)
+        toast.error(`已排队 ${queued} 个，失败 ${failed} 个，可重试失败项`)
       }
     },
-    [onOpenChange, processItem, resetState]
+    [knowledgeBaseId, onJobCreated, onOpenChange, parentId, processItem, resetState]
   )
 
   const handleStart = React.useCallback(() => {
@@ -442,7 +476,7 @@ export function DocumentImportDialog({
         onOpenChange(next)
       }}
       title="导入文档（PDF）"
-      description="文字版 PDF 直接在服务端本地抽取，不消耗模型额度；只有扫描页才会交给多模态模型识别。"
+      description="文字版 PDF 在服务端本地抽取；扫描页会先准备图片，再进入可恢复的后台任务队列。"
       disableClose={busy}
       contentClassName="sm:max-w-xl"
       footer={
@@ -606,7 +640,7 @@ export function DocumentImportDialog({
         if (!next) setNotice(null)
       }}
       title="导入完成"
-      description="文字页已本地抽取完成；含扫描页的文档会在后台继续识别。"
+      description="文档已进入后台任务队列，关闭或刷新页面不会中断。"
       contentClassName="sm:max-w-md"
       footer={
         <div className="flex w-full items-center justify-end gap-2">
@@ -625,11 +659,8 @@ export function DocumentImportDialog({
       }
     >
       <div className="space-y-2 px-1 py-1 text-sm text-muted-foreground">
-        {notice && notice.articles > 0 ? (
-          <p>{`${notice.articles} 个文档已本地抽取完成并直接生成文章，未调用多模态模型。`}</p>
-        ) : null}
         {notice && notice.queued > 0 ? (
-          <p>{`${notice.queued} 个文档含扫描页，正在后台排队识别，全部页面成功后会自动生成文章。`}</p>
+          <p>{`${notice.queued} 个文档正在后台排队处理，完成后会自动生成文章。`}</p>
         ) : null}
         <p>
           进度、目标知识库、目标文件夹和失败页重试都可以在左侧菜单的「导入任务列表」中查看。

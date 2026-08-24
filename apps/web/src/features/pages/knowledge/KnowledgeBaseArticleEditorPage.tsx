@@ -1,8 +1,8 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { AlertCircle, ChevronUp, FileDown, FileUp, Flame, Hash, Plus, RefreshCw, Save, Share2, Sparkles, X } from "@/components/iconimate"
+import { AlertCircle, ChevronLeft, ChevronUp, FileDown, FileUp, Flame, Hash, Plus, RefreshCw, Save, Share2, Sparkles, X } from "@/components/iconimate"
 import { toast } from "sonner"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 
 import { resolveAxiosErrorMessage } from "@/components/knowledge/article-share-utils"
 import { PlateMarkdownEditor, type PlateMarkdownEditorHandle } from "@/components/plate/PlateMarkdownEditor"
@@ -32,6 +32,7 @@ import {
 } from "@/lib/api"
 import type { DiscussionUser } from "@/components/editor/plugins/discussion-kit"
 import { buildToc, type TocItem } from "@/features/pages/public/public-article-utils"
+import { dashboardRoutes, knowledgeBasePath } from "@/lib/dashboard-routes"
 import { cn } from "@/lib/utils"
 
 const AI_CITATION_HIGHLIGHT_CLASSES = [
@@ -266,6 +267,7 @@ function scoreCitationBlock(
 
 export function KnowledgeBaseArticleEditorPage() {
   const { knowledgeBaseId, articleId } = useParams()
+  const navigate = useNavigate()
 
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
@@ -645,6 +647,18 @@ export function KnowledgeBaseArticleEditorPage() {
       }
     }
   }, [])
+
+  const handleReturnToDirectory = React.useCallback(async () => {
+    const target = knowledgeBaseId ? knowledgeBasePath(knowledgeBaseId) : dashboardRoutes.knowledge
+    if (readOnlyRef.current || !dirtyRef.current) {
+      navigate(target)
+      return
+    }
+
+    if (await saveNow("MANUAL")) {
+      navigate(target)
+    }
+  }, [knowledgeBaseId, navigate, saveNow])
 
   const handleContentStateChange = React.useCallback(
     (next: { markdown: string; contentJson: string; contentMetaJson: string }) => {
@@ -1141,7 +1155,18 @@ export function KnowledgeBaseArticleEditorPage() {
 
       {/* Action bar */}
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0 gap-1 px-2 text-muted-foreground"
+            disabled={loading || saving}
+            onClick={() => void handleReturnToDirectory()}
+          >
+            <ChevronLeft className="size-4" />
+            返回目录
+          </Button>
           {loaded?.path ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <p className="truncate text-xs text-muted-foreground/60">{loaded.path}</p>

@@ -276,7 +276,7 @@ export function ToolbarGroup({
     >
       <div className="flex items-center">{children}</div>
 
-      <div className="group-last/toolbar-group:hidden! mx-1.5 py-0.5">
+      <div className="group-last/toolbar-group:hidden! mx-1 py-0.5">
         <Separator orientation="vertical" />
       </div>
     </div>

@@ -3,11 +3,12 @@
 import * as React from "react"
 
 import { RetypesetSiteFooter, RetypesetSiteHeader, RetypesetSiteNav } from "@/features/pages/blog/RetypesetSiteChrome"
-import { publicAboutProfileApi, type AboutAccent, type AboutProfileResponse } from "@/lib/api"
+import { publicAboutProfileApi, type AboutAccent, type PublicAboutProfileResponse } from "@/lib/api"
 
 import { BlueNote, HandUnderline, MarkerHighlight } from "./DeskAccents"
 
-const fallbackProfile: AboutProfileResponse = {
+const fallbackProfile: PublicAboutProfileResponse = {
+    avatar: null,
     displayName: "CiZai",
     roleTitle: "Creative Dev & Visual Artist",
     intro: "我是 CiZai，是一个普普通通的程序员。\n\n目前就职于金山办公\n\n我的兴趣主要在 Coding / AI 方向。\n\n我喜欢 Minecraft。",
@@ -63,14 +64,19 @@ function resolveApiError(error: unknown) {
     )
 }
 
-function PixelAvatar() {
+function PixelAvatar({ src, alt }: { src: string | null; alt: string }) {
     return (
         <img
-            src="/about-avatar.png"
-            alt="头像"
+            src={src || "/about-avatar.png"}
+            alt={alt}
             className="relative z-10 h-full w-full rounded-md object-cover drop-shadow-[0_0_15px_rgba(255,255,255,0.22)]"
             loading="lazy"
             decoding="async"
+            onError={(event) => {
+                if (event.currentTarget.getAttribute("src") !== "/about-avatar.png") {
+                    event.currentTarget.src = "/about-avatar.png"
+                }
+            }}
         />
     )
 }
@@ -109,7 +115,7 @@ function AboutStoryLoadingSkeleton() {
 }
 
 export function AboutPage() {
-    const [profile, setProfile] = React.useState<AboutProfileResponse>(fallbackProfile)
+    const [profile, setProfile] = React.useState<PublicAboutProfileResponse>(fallbackProfile)
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState<string | null>(null)
     const [parallax, setParallax] = React.useState({ x: 0, y: 0 })
@@ -180,7 +186,7 @@ export function AboutPage() {
                         {/* 用 aspect-square + w-full 让头像跟随列宽收缩，不再写死尺寸 */}
                         <div className="group relative flex aspect-square w-full max-w-64 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/5 p-4 shadow-2xl">
                             <div className="absolute inset-0 bg-yellow-300/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                            <PixelAvatar />
+                            <PixelAvatar src={profile.avatar} alt={`${profile.displayName} 的头像`} />
                         </div>
                         <div className="mt-8 text-center md:text-left">
                             <h1 className="break-words text-2xl font-bold uppercase">{profile.displayName}</h1>

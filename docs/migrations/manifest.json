@@ -3,6 +3,21 @@
   "migrations": [
     {
       "file": "2026-08-18-agent-runtime-v2.sql"
+    },
+    {
+      "file": "2026-08-23-add-site-branding.sql"
+    },
+    {
+      "file": "2026-08-23-add-site-description.sql"
+    },
+    {
+      "file": "2026-08-23-add-site-font-config.sql"
+    },
+    {
+      "file": "2026-08-23-add-site-logo-config.sql"
+    },
+    {
+      "file": "2026-08-24-unified-document-import.sql"
     }
   ]
 }

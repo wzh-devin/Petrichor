@@ -21,7 +21,6 @@ ALTER TABLE IF EXISTS dosphere_ai_model_config     RENAME TO petrichor_ai_model_
 -- 2. 重命名索引
 -- ============================================================
 ALTER INDEX IF EXISTS ux_dosphere_user_auth_user_id              RENAME TO ux_petrichor_user_auth_user_id;
-ALTER INDEX IF EXISTS ux_dosphere_user_linuxdo_account_id        RENAME TO ux_petrichor_user_linuxdo_account_id;
 ALTER INDEX IF EXISTS dosphere_auth_session_user_id_idx          RENAME TO petrichor_auth_session_user_id_idx;
 ALTER INDEX IF EXISTS dosphere_auth_session_expires_at_idx       RENAME TO petrichor_auth_session_expires_at_idx;
 ALTER INDEX IF EXISTS dosphere_sticky_note_user_order_idx        RENAME TO petrichor_sticky_note_user_order_idx;

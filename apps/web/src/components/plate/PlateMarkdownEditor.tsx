@@ -151,8 +151,8 @@ export const PlateMarkdownEditor = React.forwardRef<PlateMarkdownEditorHandle, P
                     />
                     <div className={cn("isolate overflow-clip rounded-lg border bg-card", className)}>
                         {!disabled && (
-                            <div className="sticky top-0 z-10 border-b bg-background/95 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/70 overflow-x-auto app-scrollbar">
-                                <Toolbar className="h-9 w-max min-w-full flex-nowrap gap-1 px-2">
+                            <div className="sticky top-0 z-10 overflow-x-auto border-b bg-muted/25 px-1 app-scrollbar">
+                                <Toolbar className="h-auto w-max min-w-full flex-nowrap">
                                     <FixedToolbarButtons />
                                 </Toolbar>
                             </div>

@@ -25,14 +25,7 @@
 .retypeset-home {
   background-color: var(--retypeset-background);
   color: var(--retypeset-secondary);
-  font-family:
-    "Maple Mono",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-interface);
   text-autospace: normal;
   transition: background-color 280ms ease, color 280ms ease;
 }
@@ -57,56 +50,19 @@
 }
 
 .retypeset-home .retypeset-font-title {
-  font-family:
-    "Maple Mono",
-    "Snell-Black",
-    "EarlySummer-Subset",
-    "EarlySummer",
-    ui-serif,
-    Georgia,
-    Cambria,
-    "Times New Roman",
-    Times,
-    serif;
+  font-family: var(--font-interface);
 }
 
 .retypeset-home .retypeset-font-navbar {
-  font-family:
-    "Maple Mono",
-    "STIX-Italic",
-    "EarlySummer-Subset",
-    "EarlySummer",
-    ui-serif,
-    Georgia,
-    Cambria,
-    "Times New Roman",
-    Times,
-    serif;
+  font-family: var(--font-interface);
 }
 
 .retypeset-home .retypeset-font-time {
-  font-family:
-    "Maple Mono",
-    "Snell-Bold",
-    ui-serif,
-    Georgia,
-    Cambria,
-    "Times New Roman",
-    Times,
-    serif;
+  font-family: var(--font-interface);
 }
 
 .retypeset-home .retypeset-font-serif {
-  font-family:
-    "Maple Mono",
-    "STIX",
-    "EarlySummer",
-    ui-serif,
-    Georgia,
-    Cambria,
-    "Times New Roman",
-    Times,
-    serif;
+  font-family: var(--font-content);
 }
 
 .retypeset-home .retypeset-highlight-static,
@@ -181,7 +137,7 @@
   border-radius: 0.3rem;
   background-color: color-mix(in oklab, var(--retypeset-accent) 11%, transparent);
   color: color-mix(in oklab, var(--retypeset-accent) 88%, var(--retypeset-primary));
-  font-family: "Maple Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-interface);
   font-size: 0.62rem;
   font-weight: 500;
   line-height: 1;

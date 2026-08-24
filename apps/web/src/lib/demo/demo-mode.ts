@@ -25,7 +25,7 @@ export function enterDemoMode() {
 }
 
 /** 退出演示：清标记并整页跳走，顺带丢弃内存 mock store。 */
-export function exitDemoMode(target = "/petrichor") {
+export function exitDemoMode(target = "/") {
     try {
         window.sessionStorage.removeItem(DEMO_FLAG_KEY)
     } catch {

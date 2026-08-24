@@ -12,6 +12,7 @@ import {
     PUBLIC_CONTENT_CACHE_TTL_SECONDS,
     cachePublicArticleDetail,
     cachePublicContent,
+    cachePublicLibraryChildren,
     invalidatePublicAboutProfileCache,
     invalidatePublicArticleDetailCache,
     invalidatePublicArticleListCache,
@@ -59,6 +60,22 @@ describe("public content cache", () => {
             tags: [PUBLIC_CONTENT_CACHE_TAGS.articleDetail, "public:article:detail:shareCode123"],
         })
         expect(loader).toHaveBeenCalledTimes(1)
+    })
+
+    it("用当前目录与分页维度包装公开目录缓存配置", async () => {
+        const loader = vi.fn(async () => ({ items: [] }))
+
+        const cachedLoader = cachePublicLibraryChildren(loader)
+        await expect(cachedLoader("2:3:1:20", undefined)).resolves.toEqual({ items: [] })
+
+        expect(nextCacheMocks.unstable_cache).toHaveBeenCalledWith(
+            loader,
+            ["public-content", "article-list", "library"],
+            {
+                revalidate: PUBLIC_CONTENT_CACHE_TTL_SECONDS.articleList,
+                tags: [PUBLIC_CONTENT_CACHE_TAGS.articleList],
+            },
+        )
     })
 
     it("主动失效使用指定 tag 和 max profile", () => {

@@ -1,1 +1,1 @@
-export { deleteImportJobs as POST } from "@/server/kb/import-handlers"
+export { deleteImportBatches as POST } from "@/server/kb/import-batch-handlers"

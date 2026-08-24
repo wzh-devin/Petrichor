@@ -12,10 +12,6 @@ export function toUserResponse(user: UserRecord) {
         id: String(user.id),
         email: user.email,
         systemRole: user.systemRole as "USER" | "SUPER_ADMIN",
-        userType: user.userType,
-        linuxDoBound: Boolean(user.linuxDoAccountId?.trim()),
-        linuxDoUsername: user.linuxDoUsername,
-        linuxDoEmail: user.linuxDoEmail,
         username: user.username,
         nickname: user.nickname,
         avatar: user.avatar,
@@ -31,4 +27,3 @@ export function toUserProfileResponse(user: UserRecord, options?: { twoFactorEna
         updatedAt: formatDate(user.updatedAt),
     }
 }
-

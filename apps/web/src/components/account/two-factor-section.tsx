@@ -87,7 +87,6 @@ export function TwoFactorSection({ profile, onChanged }: Props) {
   const [password, setPassword] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
 
-  const isLocalUser = profile?.userType === "LOCAL"
   const enabled = Boolean(profile?.twoFactorEnabled)
 
   const closeDialog = () => {
@@ -207,31 +206,24 @@ export function TwoFactorSection({ profile, onChanged }: Props) {
               ? "邮箱密码登录时需要额外输入 Authenticator 中的 6 位验证码。"
               : "为账号增加一层防护，建议使用 Authy / 1Password / Google Authenticator。"}
           </div>
-          {!isLocalUser ? (
-            <div className="text-xs text-muted-foreground">
-              第三方登录账号无需也无法配置 TOTP。
-            </div>
-          ) : null}
         </div>
-        {isLocalUser ? (
-          enabled ? (
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={openRegen}>
-                <RefreshCw className="h-4 w-4 mr-1" />
-                重新生成备份码
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={openDisable}>
-                <ShieldOff className="h-4 w-4 mr-1" />
-                关闭
-              </Button>
-            </div>
-          ) : (
-            <Button type="button" variant="outline" size="sm" onClick={openEnable}>
-              <KeyRound className="h-4 w-4 mr-1" />
-              启用二步验证
+        {enabled ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={openRegen}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              重新生成备份码
             </Button>
-          )
-        ) : null}
+            <Button type="button" variant="outline" size="sm" onClick={openDisable}>
+              <ShieldOff className="h-4 w-4 mr-1" />
+              关闭
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="outline" size="sm" onClick={openEnable}>
+            <KeyRound className="h-4 w-4 mr-1" />
+            启用二步验证
+          </Button>
+        )}
       </div>
 
       <Dialog

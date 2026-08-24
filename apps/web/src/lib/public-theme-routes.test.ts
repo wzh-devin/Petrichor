@@ -14,13 +14,13 @@ describe("public theme routes", () => {
     expect(isPublicSitePath("/petrichor")).toBe(true)
     expect(isPublicSitePath("/p/shareCode123")).toBe(true)
     expect(isPublicSitePath("/b/burnCode123")).toBe(true)
+    expect(isPublicSitePath("/library/2/3")).toBe(true)
   })
 
   it("后台和登录页保留普通主题切换", () => {
     expect(isPublicSitePath("/dashboard")).toBe(false)
     expect(isPublicSitePath("/dashboard/knowledge")).toBe(false)
     expect(isPublicSitePath("/login")).toBe(false)
-    expect(isPublicSitePath("/auth/callback")).toBe(false)
   })
 
   // 首屏防闪脚本用的是反向排除规则，不能与本模块的正向判定分叉，
@@ -28,9 +28,9 @@ describe("public theme routes", () => {
   it("防闪脚本的排除式判定与正向判定结论一致", () => {
     const appRoutes = [
       "/", "/tags", "/tags/", "/graph", "/ask", "/about", "/projects", "/petrichor",
-      "/p/shareCode123", "/b/burnCode123",
+      "/p/shareCode123", "/b/burnCode123", "/library/2", "/library/2/3",
       "/dashboard", "/dashboard/knowledge", "/dashboard/admin/site-graph",
-      "/login", "/auth/callback", "/demo",
+      "/login", "/demo",
     ]
     for (const route of appRoutes) {
       expect([route, isPublicSitePathByExclusion(route)])

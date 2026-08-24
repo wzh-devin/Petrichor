@@ -1,13 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { Github, MessageCircleQuestion, Search } from "@/components/iconimate"
+import { Github, Search } from "@/components/iconimate"
 import { Link } from "react-router-dom"
 
 import { BlogSearchDialog, useBlogSearchHotkey } from "@/components/blog-search-dialog"
 import { StaticNoise } from "@/cuicui/other/creative-effects/animated-noise/static-noise"
+import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME } from "@/lib/site-branding"
 
-export type RetypesetSiteActiveSection = "articles" | "tags" | "graph" | "ask" | "projects" | "petrichor" | "about"
+export type RetypesetSiteActiveSection = "articles" | "tags" | "graph" | "projects" | "about"
 type RetypesetSiteNavSection = RetypesetSiteActiveSection
 type RetypesetSiteNavItem = {
     section: RetypesetSiteNavSection
@@ -24,14 +25,10 @@ const RETYPESET_SITE_RSS_HREF = "/atom.xml"
 const RETYPESET_SITE_START_YEAR = 2024
 
 const retypesetSiteCopy = {
-    siteTitle: "Petrichor",
-    siteSubtitle: "Knowledge, Articles & Inspiration",
     navLabel: "站点导航",
     navPosts: "文章",
     navGraph: "星图",
-    navAsk: "问答",
     navProjects: "开源",
-    navPetrichor: "项目",
     navAbout: "关于",
     searchTrigger: "搜索文章",
     githubTrigger: "GitHub 仓库",
@@ -44,7 +41,6 @@ const retypesetSiteNavItems: RetypesetSiteNavItem[] = [
     // 标签页不进导航栏（仍保留 /tags 路由，由文章标签与图谱标签节点跳入）
     { section: "graph", href: "/graph", label: retypesetSiteCopy.navGraph, internal: true },
     { section: "projects", href: "/projects", label: retypesetSiteCopy.navProjects, internal: true },
-    { section: "petrichor", href: "/petrichor", label: retypesetSiteCopy.navPetrichor, internal: true },
     { section: "about", href: "/about", label: retypesetSiteCopy.navAbout, internal: true },
 ] as const
 
@@ -57,6 +53,16 @@ function getCopyrightYearRange() {
     return RETYPESET_SITE_START_YEAR === currentYear
         ? `${RETYPESET_SITE_START_YEAR}`
         : `${RETYPESET_SITE_START_YEAR}-${currentYear}`
+}
+
+function getSiteBranding() {
+    if (typeof document === "undefined") {
+        return { siteName: DEFAULT_SITE_NAME, siteDescription: DEFAULT_SITE_DESCRIPTION }
+    }
+    return {
+        siteName: document.documentElement.dataset.siteName || DEFAULT_SITE_NAME,
+        siteDescription: document.documentElement.dataset.siteDescription || DEFAULT_SITE_DESCRIPTION,
+    }
 }
 
 function getChromeLinkClassName(active: boolean) {
@@ -84,9 +90,11 @@ function useRetypesetScrollbarVisibility() {
     }, [])
 }
 
+/** 公开页面共享的站点名称与描述。 */
 export function RetypesetSiteHeader({ dockVisible }: { dockVisible: boolean }) {
     useRetypesetScrollbarVisibility()
     const dockVisibilityClass = getDockVisibilityClass(dockVisible)
+    const { siteName, siteDescription } = getSiteBranding()
 
     return (
         <div className="retypeset-home contents">
@@ -100,12 +108,12 @@ export function RetypesetSiteHeader({ dockVisible }: { dockVisible: boolean }) {
                 <h1 className="retypeset-font-title retypeset-c-primary mb-[0.45rem] w-3/4 text-[2rem] font-bold leading-none lg:w-full lg:text-4xl">
                     <span className="box-content inline-block pr-1">
                         <Link id="site-title-link" to="/#articles">
-                            {retypesetSiteCopy.siteTitle}
+                            {siteName}
                         </Link>
                     </span>
                 </h1>
                 <h2 className="retypeset-font-navbar w-3/4 text-sm leading-snug lg:w-full lg:text-base">
-                    {retypesetSiteCopy.siteSubtitle}
+                    {siteDescription}
                 </h2>
             </header>
         </div>
@@ -161,16 +169,6 @@ export function RetypesetSiteNav({
                         <Search className="size-4" aria-hidden="true" />
                         <span className="sr-only">{retypesetSiteCopy.searchTrigger}</span>
                     </button>
-                    <Link
-                        to="/ask"
-                        aria-label={retypesetSiteCopy.navAsk}
-                        aria-current={activeSection === "ask" ? "page" : undefined}
-                        title={retypesetSiteCopy.navAsk}
-                        className={`${activeSection === "ask" ? "retypeset-c-primary" : "retypeset-c-secondary"} inline-flex size-7 cursor-pointer items-center justify-center rounded-full transition-colors`}
-                    >
-                        <MessageCircleQuestion className="size-4" aria-hidden="true" />
-                        <span className="sr-only">{retypesetSiteCopy.navAsk}</span>
-                    </Link>
                     <a
                         href={RETYPESET_SITE_GITHUB_HREF}
                         target="_blank"
@@ -189,9 +187,11 @@ export function RetypesetSiteNav({
     )
 }
 
+/** 公开页面共享的站点页脚。 */
 export function RetypesetSiteFooter({ dockVisible }: { dockVisible: boolean }) {
     const dockVisibilityClass = getDockVisibilityClass(dockVisible)
     const year = getCopyrightYearRange()
+    const { siteName } = getSiteBranding()
 
     return (
         <div className="retypeset-home contents">
@@ -210,7 +210,7 @@ export function RetypesetSiteFooter({ dockVisible }: { dockVisible: boolean }) {
                         Email
                     </a>
                 </p>
-                <p>© {year} Petrichor</p>
+                <p>© {year} {siteName}</p>
                 <p>
                     Powered by{" "}
                     <a

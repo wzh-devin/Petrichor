@@ -588,6 +588,7 @@ export async function updateKnowledgeBase(request: NextRequest) {
             .where(and(eq(knowledgeBases.id, input.knowledgeBaseId), eq(knowledgeBases.userId, user.id)))
             .returning()
 
+        invalidatePublicArticleListCache()
         return ok(toKnowledgeBaseResponse(record))
     })
 }
@@ -770,8 +771,8 @@ export async function moveNode(request: NextRequest) {
                 .where(and(eq(knowledgeBaseNodes.id, id), eq(knowledgeBaseNodes.userId, user.id)))
         }
 
+        invalidatePublicArticleListCache()
         if (sourceParentId !== targetParentId) {
-            invalidatePublicArticleListCache()
             invalidatePublicArticleDetailCache()
         }
 
@@ -820,6 +821,7 @@ export async function updateFolder(request: NextRequest) {
             .set({ name: input.name, updatedAt: new Date() })
             .where(and(eq(knowledgeBaseNodes.id, input.nodeId), eq(knowledgeBaseNodes.userId, user.id)))
 
+        invalidatePublicArticleListCache()
         return ok({ nodeId: String(input.nodeId) })
     })
 }

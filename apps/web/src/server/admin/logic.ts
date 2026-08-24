@@ -14,7 +14,6 @@ export type AdminUserOrderColumn =
     | "systemRole"
     | "updatedAt"
     | "username"
-    | "userType"
 
 export interface AdminUserOrder {
     column: AdminUserOrderColumn
@@ -43,7 +42,6 @@ const orderColumnMap: Record<string, AdminUserOrderColumn> = {
     system_role: "systemRole",
     updated_at: "updatedAt",
     username: "username",
-    user_type: "userType",
 }
 
 const drizzleColumnMap: Record<AdminUserOrderColumn, AnyColumn> = {
@@ -56,7 +54,6 @@ const drizzleColumnMap: Record<AdminUserOrderColumn, AnyColumn> = {
     systemRole: users.systemRole,
     updatedAt: users.updatedAt,
     username: users.username,
-    userType: users.userType,
 }
 
 export function normalizeSystemRole(systemRole: string | null | undefined, userId: number): "USER" | "SUPER_ADMIN" {
@@ -69,14 +66,6 @@ export function normalizeSystemRole(systemRole: string | null | undefined, userI
 
 export function isSuperAdmin(systemRole: string | null | undefined, userId: number) {
     return normalizeSystemRole(systemRole, userId) === "SUPER_ADMIN"
-}
-
-export function normalizeUserType(userType: string | null | undefined, passwordHash: string | null | undefined) {
-    const normalized = userType?.trim() ?? ""
-    if (normalized) {
-        return normalized
-    }
-    return passwordHash?.trim() ? "LOCAL" : "LINUXDO"
 }
 
 export function validateAdminCreateInput(raw: unknown): AdminCreateInput {
@@ -191,7 +180,6 @@ export function buildAdminUserItem(user: UserRecord) {
         id: String(user.id),
         email: user.email,
         systemRole: normalizeSystemRole(user.systemRole, user.id),
-        userType: normalizeUserType(user.userType, user.passwordHash),
         username: user.username,
         nickname: user.nickname,
         avatar: user.avatar,

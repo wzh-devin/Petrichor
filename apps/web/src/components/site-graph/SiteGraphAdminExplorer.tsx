@@ -243,7 +243,7 @@ export function SiteGraphAdminExplorer({
                             if (event.key === "Enter" && matches[0]) focusNode(matches[0].id)
                             if (event.key === "Escape") setKeyword("")
                         }}
-                        className="h-9 w-full rounded-md border bg-transparent px-3 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+                        className="h-9 w-full rounded-md border bg-transparent px-3 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-foreground focus-visible:ring-0 dark:bg-input/30"
                     />
                     {matches.length > 0 ? (
                         <ul className="absolute left-0 right-0 top-10 z-20 overflow-hidden rounded-md border bg-popover p-1 shadow-md">

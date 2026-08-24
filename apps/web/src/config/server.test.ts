@@ -34,6 +34,7 @@ describe("loadServerConfigFromEnv", () => {
             bucket: "bucket",
             downloadExpireSeconds: 600,
             endpoint: "http://s3.example.com",
+            forcePathStyle: false,
             region: "cn-east-1",
             secretAccessKey: "sk",
             uploadExpireSeconds: 300,

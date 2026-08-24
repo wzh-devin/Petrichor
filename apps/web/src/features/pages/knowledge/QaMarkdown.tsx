@@ -77,9 +77,9 @@ function QaMarkdownThemeShell({ children }: { children: React.ReactNode }) {
     <ThemeProvider
       themeMode={isDark ? "dark" : "light"}
       enableGlobalStyle={false}
-      // ThemeProvider 内部的 antd <App> 包裹层默认只有 minHeight:inherit，
-      // 会打断外层 h-full 高度链，这里补回 100% 高度。
-      style={{ height: "100%", minHeight: 0 }}
+      // ThemeProvider 内部的 antd <App> 会重置字体并打断高度链，
+      // 这里恢复站点界面字体，同时补回 100% 高度。
+      style={{ height: "100%", minHeight: 0, fontFamily: "var(--font-interface)" }}
     >
       {children}
     </ThemeProvider>

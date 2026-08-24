@@ -80,9 +80,28 @@ export function cachePublicArticleDetail<T>(shareCode: string, loader: () => Pro
     }
 }
 
+export function cachePublicLibraryChildren<TInput, TResult>(loader: (input: TInput) => Promise<TResult>) {
+    const nextCached = unstable_cache(loader, [...publicContentCacheKeyParts.articleList, "library"], {
+        revalidate: PUBLIC_CONTENT_CACHE_TTL_SECONDS.articleList,
+        tags: [PUBLIC_CONTENT_CACHE_TAGS.articleList],
+    })
+
+    return async (locationKey: string, input: TInput): Promise<TResult> => {
+        if (!getRedis()) {
+            return nextCached(input) as Promise<TResult>
+        }
+        return cacheReadThrough(
+            cacheKey("public", "library", locationKey),
+            PUBLIC_CONTENT_CACHE_TTL_SECONDS.articleList,
+            () => loader(input),
+        )
+    }
+}
+
 export function invalidatePublicArticleListCache() {
     revalidateTag(PUBLIC_CONTENT_CACHE_TAGS.articleList, "max")
     void cacheDrop(publicContentRedisKey.articleList)
+    void cacheDropByPrefix(`${cacheKey("public", "library")}:`)
 }
 
 export function invalidatePublicArticleDetailCache(shareCode?: string | null) {

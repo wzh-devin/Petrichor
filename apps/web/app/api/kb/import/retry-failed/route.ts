@@ -1,1 +1,1 @@
-export { retryImportJobFailedPages as POST } from "@/server/kb/import-handlers"
+export { retryImportBatch as POST } from "@/server/kb/import-batch-handlers"

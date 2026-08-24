@@ -77,10 +77,6 @@ export const users = pgTable("petrichor_user", {
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     systemRole: text("system_role").notNull().default("USER"),
-    userType: text("user_type").notNull().default("LOCAL"),
-    linuxDoAccountId: text("linuxdo_account_id"),
-    linuxDoUsername: text("linuxdo_username"),
-    linuxDoEmail: text("linuxdo_email"),
     username: text("username"),
     nickname: text("nickname"),
     avatar: text("avatar"),
@@ -89,7 +85,6 @@ export const users = pgTable("petrichor_user", {
 }, (table) => [
     uniqueIndex("ux_petrichor_user_email").on(table.email),
     uniqueIndex("ux_petrichor_user_auth_user_id").on(table.authUserId),
-    uniqueIndex("ux_petrichor_user_linuxdo_account_id").on(table.linuxDoAccountId),
 ])
 
 export const betterAuthUsers = pgTable("better_auth_user", {
@@ -570,6 +565,11 @@ export const siteAboutProfiles = pgTable("petrichor_site_about_profile", {
 export const siteAppearance = pgTable("petrichor_site_appearance", {
     id: integer("id").primaryKey(),
     publicQaEnabled: boolean("public_qa_enabled").notNull().default(true),
+    siteName: text("site_name").notNull().default("Petrichor"),
+    siteDescription: text("site_description").notNull().default("Knowledge, Articles & Inspiration"),
+    sidebarTitle: text("sidebar_title").notNull().default("Petrichor"),
+    siteLogoJson: text("site_logo_json"),
+    fontConfigJson: text("font_config_json"),
     ...timestamps,
 })
 
@@ -952,9 +952,36 @@ export const aiReviews = pgTable("petrichor_ai_review", {
     index("idx_petrichor_ai_review_user_generated").on(table.userId, table.generatedAt),
 ])
 
-// 文档导入任务：PDF / Word 每页图片经多模态识别后合并为一篇文章
+// 一次用户提交对应一个导入批次；来源适配器负责把批次发现为若干文档任务。
+export const knowledgeBaseImportBatches = pgTable("petrichor_kb_import_batch", {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" }).notNull(),
+    knowledgeBaseId: bigint("knowledge_base_id", { mode: "number" }).notNull(),
+    parentNodeId: bigint("parent_node_id", { mode: "number" }),
+    sourceType: text("source_type").notNull(),
+    sourceName: text("source_name").notNull(),
+    sourceRef: text("source_ref"),
+    sourcePayloadJson: text("source_payload_json"),
+    status: text("status").notNull().default("pending"),
+    totalItems: integer("total_items").notNull().default(0),
+    completedItems: integer("completed_items").notNull().default(0),
+    failedItems: integer("failed_items").notNull().default(0),
+    skippedItems: integer("skipped_items").notNull().default(0),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    error: text("error"),
+    ...timestamps,
+}, (table) => [
+    index("idx_petrichor_kb_import_batch_user").on(table.userId, table.createdAt),
+    index("idx_petrichor_kb_import_batch_user_kb").on(table.userId, table.knowledgeBaseId),
+    index("idx_petrichor_kb_import_batch_queue").on(table.status, table.nextRetryAt, table.lockedAt),
+])
+
+// 单篇来源文档的导入任务；PDF 页面继续保存在 job_page 表。
 export const knowledgeBaseImportJobs = pgTable("petrichor_kb_import_job", {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    batchId: bigint("batch_id", { mode: "number" }),
     userId: bigint("user_id", { mode: "number" }).notNull(),
     knowledgeBaseId: bigint("knowledge_base_id", { mode: "number" }).notNull(),
     parentNodeId: bigint("parent_node_id", { mode: "number" }),
@@ -962,17 +989,26 @@ export const knowledgeBaseImportJobs = pgTable("petrichor_kb_import_job", {
     fileName: text("file_name").notNull(),
     // 原始 PDF 在对象存储中的 key：服务端据此取字节做本地抽取，也用于失败页重新栅格化。
     sourceKey: text("source_key"),
+    // 外部来源文档 token，或其他无需下载保存的稳定来源标识。
+    sourceRef: text("source_ref"),
+    relativePath: text("relative_path"),
+    sourcePayloadJson: text("source_payload_json"),
     title: text("title").notNull(),
     totalPages: integer("total_pages").notNull().default(0),
     processedPages: integer("processed_pages").notNull().default(0),
     status: text("status").notNull().default("pending"),
     modelConfigId: bigint("model_config_id", { mode: "number" }),
     articleId: bigint("article_id", { mode: "number" }),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
     error: text("error"),
     ...timestamps,
 }, (table) => [
     index("idx_petrichor_kb_import_job_user").on(table.userId, table.createdAt),
     index("idx_petrichor_kb_import_job_user_kb").on(table.userId, table.knowledgeBaseId),
+    index("idx_petrichor_kb_import_job_batch").on(table.batchId, table.createdAt),
+    index("idx_petrichor_kb_import_job_queue").on(table.status, table.nextRetryAt, table.lockedAt),
 ])
 
 export const knowledgeBaseImportJobPages = pgTable("petrichor_kb_import_job_page", {
@@ -990,6 +1026,22 @@ export const knowledgeBaseImportJobPages = pgTable("petrichor_kb_import_job_page
 }, (table) => [
     uniqueIndex("ux_petrichor_kb_import_job_page_job_no").on(table.jobId, table.pageNo),
     index("idx_petrichor_kb_import_job_page_job").on(table.jobId),
+])
+
+// 用户级飞书 OAuth 连接；令牌使用 PETRICHOR_ENCRYPT_KEY/SALT 加密后保存。
+export const feishuConnections = pgTable("petrichor_feishu_connection", {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: bigint("user_id", { mode: "number" }).notNull(),
+    openId: text("open_id"),
+    displayName: text("display_name"),
+    accessTokenEncrypted: text("access_token_encrypted").notNull(),
+    refreshTokenEncrypted: text("refresh_token_encrypted"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    ...timestamps,
+}, (table) => [
+    uniqueIndex("ux_petrichor_feishu_connection_user").on(table.userId),
 ])
 
 // 问答 Agent 跨 thread 长期记忆：从历史对话蒸馏的用户偏好/常关注主题/背景事实。
@@ -1263,8 +1315,10 @@ export type AiProviderRecord = typeof aiProviders.$inferSelect
 export type AiModelRecord = typeof aiModels.$inferSelect
 export type AiBindingRecord = typeof aiBindings.$inferSelect
 export type AiReviewRecord = typeof aiReviews.$inferSelect
+export type KnowledgeBaseImportBatchRecord = typeof knowledgeBaseImportBatches.$inferSelect
 export type KnowledgeBaseImportJobRecord = typeof knowledgeBaseImportJobs.$inferSelect
 export type KnowledgeBaseImportJobPageRecord = typeof knowledgeBaseImportJobPages.$inferSelect
+export type FeishuConnectionRecord = typeof feishuConnections.$inferSelect
 export type AgentMemoryRecord = typeof agentMemories.$inferSelect
 export type AgentMemoryStateRecord = typeof agentMemoryStates.$inferSelect
 export type AssistantThreadRecord = typeof assistantThreads.$inferSelect

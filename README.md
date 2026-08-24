@@ -54,7 +54,7 @@
 | **📝 富文本编辑器** | 基于 PlateJS，支持 Markdown、代码块、表格、数学公式、白板、思维导图、媒体嵌入等 |
 | **📚 知识库** | 多层级目录树、文章标签、文章分享、文章 RSS/Atom Feed |
 | **🤖 AI 助手** | AI 续写 / 改写 / 翻译 / 语气调整、AI 文章总结、AI 周报 & 月报回顾 |
-| **🔐 认证体系** | Better Auth + httpOnly Cookie，支持邮箱密码、LinuxDo OAuth、二步验证 |
+| **🔐 认证体系** | Better Auth + httpOnly Cookie，支持邮箱密码和二步验证 |
 | **🗂️ 对象存储** | S3 兼容上传（封面、附件、头像），支持预签名 URL |
 | **📊 仪表盘** | 写作数据统计、活跃度图、知识库分布 |
 | **🎨 主题与外观** | 浅色/深色模式、自定义网站标题/图标、Retypeset 主题博客首页 |
@@ -211,8 +211,8 @@ openssl rand -hex 8
        values (v_auth_user_id, v_nickname, lower(v_email), true, now(), now())
        on conflict (email) do nothing;
 
-       insert into petrichor_user (auth_user_id, email, password_hash, system_role, user_type, username, nickname)
-       values (v_auth_user_id, lower(v_email), v_password_hash, 'SUPER_ADMIN', 'LOCAL', v_username, v_nickname)
+       insert into petrichor_user (auth_user_id, email, password_hash, system_role, username, nickname)
+       values (v_auth_user_id, lower(v_email), v_password_hash, 'SUPER_ADMIN', v_username, v_nickname)
        on conflict (email) do nothing;
 
        insert into better_auth_account (id, account_id, provider_id, user_id, password, created_at, updated_at)
@@ -262,24 +262,10 @@ openssl rand -hex 8
 
 | 变量 | 用于什么功能 |
 | --- | --- |
-| `NEXT_PUBLIC_APP_URL` | **公开站点完整 URL**（如 `https://yourdomain.com`、`https://你的项目.vercel.app`）。用于：文章分享链接、RSS/Atom 链接生成、OAuth 回调地址 fallback、SEO `og:url`。部署完成后**务必回填**为真实域名 |
+| `NEXT_PUBLIC_APP_URL` | **公开站点完整 URL**（如 `https://yourdomain.com`、`https://你的项目.vercel.app`）。用于：文章分享链接、RSS/Atom 链接生成、SEO `og:url`。部署完成后**务必回填**为真实域名 |
 | `NEXT_PUBLIC_REGISTER_ENABLED` | 是否在登录页显示「注册」入口，`"true"` / `"false"`，默认 `"false"`（关闭注册，仅管理员手动添加用户） |
 | `PETRICHOR_REGISTER_DEFAULT_SYSTEM_ROLE` | 开放注册时新用户默认角色，只允许 `USER` 或 `SUPER_ADMIN`，默认 `USER`。**通常无需设置**：系统里还没有任何超级管理员时，第一个注册的账号会自动成为 `SUPER_ADMIN` |
 | `PETRICHOR_SESSION_EXPIRE_SECONDS` | 登录态有效期（秒），默认 `172800`（2 天） |
-
-### 🔗 LinuxDo OAuth（可选第三方登录）
-
-不需要 LinuxDo 登录可以**全部留空**。
-
-| 变量 | 用于什么功能 |
-| --- | --- |
-| `PETRICHOR_LINUXDO_CLIENT_ID` | LinuxDo OAuth 应用 Client ID |
-| `PETRICHOR_LINUXDO_CLIENT_SECRET` | LinuxDo OAuth 应用 Client Secret |
-| `PETRICHOR_LINUXDO_REDIRECT_URI` | OAuth 回调地址，需与 LinuxDo 应用注册一致；留空则取 `NEXT_PUBLIC_APP_URL + /api/auth/callback` |
-
-> 在 <https://connect.linux.do> 注册一个 OAuth 应用即可获得 ID 和 Secret，回调地址填 `https://你的域名/api/auth/callback`。
-
----
 
 ## 🛠️ Agent 集成（Skill 包 / REST 能力层）
 
@@ -348,10 +334,6 @@ NEXT_PUBLIC_REGISTER_ENABLED="false"
 PETRICHOR_REGISTER_DEFAULT_SYSTEM_ROLE="USER"
 PETRICHOR_SESSION_EXPIRE_SECONDS="172800"
 
-# 可选：LinuxDo OAuth
-PETRICHOR_LINUXDO_CLIENT_ID=""
-PETRICHOR_LINUXDO_CLIENT_SECRET=""
-PETRICHOR_LINUXDO_REDIRECT_URI=""
 ```
 
 ---
@@ -453,7 +435,7 @@ pnpm test
 
 ## English
 
-**Petrichor** (repo codename *Dosphere*) is a self-hostable knowledge-base & blog platform powered by **Next.js 16 + Supabase + Vercel**, featuring a PlateJS rich-text editor, multi-level knowledge tree, AI writing assistant (continue / rewrite / translate / tone), AI weekly & monthly reviews, S3-compatible uploads, Better Auth with optional LinuxDo OAuth, and an **Agent integration layer** (REST + downloadable Skill packs compatible with Claude Code / Codex) with full call auditing.
+**Petrichor** (repo codename *Dosphere*) is a self-hostable knowledge-base & blog platform powered by **Next.js 16 + Supabase + Vercel**, featuring a PlateJS rich-text editor, multi-level knowledge tree, AI writing assistant (continue / rewrite / translate / tone), AI weekly & monthly reviews, S3-compatible uploads, Better Auth, and an **Agent integration layer** (REST + downloadable Skill packs compatible with Claude Code / Codex) with full call auditing.
 
 ### Links
 
@@ -487,7 +469,7 @@ pnpm test
 | `SESSION_SECRET` | Better Auth cookie signing key (≥ 32 chars) |
 | `PETRICHOR_ENCRYPT_KEY` / `PETRICHOR_ENCRYPT_SALT` | AES-style encryption for stored AI provider API keys |
 | `S3_ENDPOINT` / `S3_REGION` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | Object storage for uploads (article covers, attachments, avatars) |
-| `NEXT_PUBLIC_APP_URL` | Public site URL — used by RSS, share links, OAuth callbacks, SEO metadata |
+| `NEXT_PUBLIC_APP_URL` | Public site URL — used by RSS, share links, and SEO metadata |
 
 ### Optional env
 
@@ -496,7 +478,6 @@ pnpm test
 | `NEXT_PUBLIC_REGISTER_ENABLED` | Show the "Sign up" entry on the login page (`true` / `false`) |
 | `PETRICHOR_REGISTER_DEFAULT_SYSTEM_ROLE` | Default role for self-registered users — `USER` or `SUPER_ADMIN` (default `USER`). Usually unnecessary: the first account registered while no super-admin exists is auto-promoted to `SUPER_ADMIN` |
 | `PETRICHOR_SESSION_EXPIRE_SECONDS` | Session lifetime in seconds (default `172800`) |
-| `PETRICHOR_LINUXDO_CLIENT_ID` / `PETRICHOR_LINUXDO_CLIENT_SECRET` / `PETRICHOR_LINUXDO_REDIRECT_URI` | LinuxDo OAuth (optional third-party login) |
 
 See the full breakdown in the [Chinese section above](#-环境变量速查表).
 

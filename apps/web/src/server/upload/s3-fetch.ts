@@ -4,6 +4,10 @@ import { getLocalStorageDirOrNull, readLocalObjectBytes } from "@/server/upload/
 import { createS3PresignedUrl, stripS4KeyPrefix } from "@/server/upload/s3-presign"
 
 const EXT_MIME: Record<string, string> = {
+    ".otf": "font/otf",
+    ".ttf": "font/ttf",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -13,7 +17,7 @@ const EXT_MIME: Record<string, string> = {
 
 function guessMimeFromKey(objectKey: string): string {
     const match = objectKey.toLowerCase().match(/\.[a-z0-9]+$/)
-    return (match && EXT_MIME[match[0]]) || "image/png"
+    return (match && EXT_MIME[match[0]]) || "application/octet-stream"
 }
 
 export interface S3ObjectBytes {

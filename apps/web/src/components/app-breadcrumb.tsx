@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { notificationApi } from "@/lib/api"
-import { dashboardRoutes } from "@/lib/dashboard-routes"
+import { dashboardRoutes, knowledgeBasePath } from "@/lib/dashboard-routes"
 import { emitNotificationRefresh, useNotificationCenter } from "@/hooks/use-notification-center"
 import { resolveAxiosErrorMessage } from "@/components/knowledge/article-share-utils"
 import { getKnowledgeBaseCrumbName } from "@/features/pages/knowledge/kb-recent"
@@ -46,6 +46,7 @@ const routeMap: Record<string, BreadcrumbItem[]> = {
   [dashboardRoutes.agentMcp]: [{ label: "Agent 集成" }, { label: "MCP Server" }],
   [dashboardRoutes.agentSkill]: [{ label: "Agent 集成" }, { label: "Skill 包" }],
   [dashboardRoutes.adminUsers]: [{ label: "系统管理" }, { label: "用户管理" }],
+  [dashboardRoutes.adminAppearance]: [{ label: "系统管理" }, { label: "外观设置" }],
   [dashboardRoutes.adminAbout]: [{ label: "系统管理" }, { label: "关于我配置" }],
   [dashboardRoutes.adminProjects]: [{ label: "系统管理" }, { label: "开源项目" }],
   [dashboardRoutes.adminSiteGraph]: [{ label: "系统管理" }, { label: "全站星图" }],
@@ -57,16 +58,18 @@ function resolveBreadcrumbItems(pathname: string): BreadcrumbItem[] | undefined 
     return matched
   }
 
-  if (new RegExp(`^${dashboardRoutes.knowledge}/[^/]+/articles/[^/]+/mindmap$`).test(pathname)) {
+  const articleMindMapMatch = pathname.match(new RegExp(`^${dashboardRoutes.knowledge}/([^/]+)/articles/[^/]+/mindmap$`))
+  if (articleMindMapMatch) {
     return [
-      { label: "知识库", href: dashboardRoutes.knowledge },
+      { label: "知识库", href: knowledgeBasePath(articleMindMapMatch[1]) },
       { label: "思维导图" },
     ]
   }
 
-  if (new RegExp(`^${dashboardRoutes.knowledge}/[^/]+/articles/[^/]+$`).test(pathname)) {
+  const articleEditorMatch = pathname.match(new RegExp(`^${dashboardRoutes.knowledge}/([^/]+)/articles/[^/]+$`))
+  if (articleEditorMatch) {
     return [
-      { label: "知识库", href: dashboardRoutes.knowledge },
+      { label: "知识库", href: knowledgeBasePath(articleEditorMatch[1]) },
       { label: "文章编辑" },
     ]
   }

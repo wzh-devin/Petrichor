@@ -10,8 +10,8 @@ import {
   IconKey,
   IconListDetails,
   IconPackage,
-  IconPlugConnected,
   IconPalette,
+  IconPlugConnected,
   IconNetwork,
   IconRobot,
   IconSettings,
@@ -40,6 +40,7 @@ import {
 import { authApi } from "@/lib/api"
 import { dashboardRoutes, isDashboardSectionPath } from "@/lib/dashboard-routes"
 import { isDemoMode } from "@/lib/demo/demo-mode"
+import { DEFAULT_SIDEBAR_TITLE } from "@/lib/site-branding"
 import type { UserResponse } from "@/lib/api"
 
 /* 演示模式只开放已 mock 的页面，其余入口整组隐藏，避免点进去一屏报错。 */
@@ -76,6 +77,9 @@ function matchDocLibraryList(pathname: string) {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const sidebarTitle = typeof document === "undefined"
+    ? DEFAULT_SIDEBAR_TITLE
+    : document.documentElement.dataset.sidebarTitle || DEFAULT_SIDEBAR_TITLE
   const [user, setUser] = React.useState<UserResponse | null>(null)
   const [userLoaded, setUserLoaded] = React.useState(false)
   const location = useLocation()
@@ -194,6 +198,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
     return [
       {
+        title: "外观设置",
+        url: dashboardRoutes.adminAppearance,
+        icon: IconPalette,
+        isActive: isDashboardSectionPath(location.pathname, "admin/appearance"),
+      },
+      {
         title: "用户管理",
         url: dashboardRoutes.adminUsers,
         icon: IconUsers,
@@ -210,12 +220,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         url: dashboardRoutes.adminProjects,
         icon: IconPackage,
         isActive: isDashboardSectionPath(location.pathname, "admin/projects"),
-      },
-      {
-        title: "外观设置",
-        url: dashboardRoutes.adminAppearance,
-        icon: IconPalette,
-        isActive: isDashboardSectionPath(location.pathname, "admin/appearance"),
       },
       {
         title: "全站星图",
@@ -253,11 +257,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5 group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:!p-1"
-              tooltip="Petrichor"
+              tooltip={sidebarTitle}
             >
-              <Link to={dashboardRoutes.root}>
-                <SiteLogo className="size-6 shrink-0" />
-                <span className="text-base font-semibold">Petrichor</span>
+              <Link to={dashboardRoutes.root} className="min-w-0">
+                <SiteLogo alt={sidebarTitle} className="size-6 shrink-0" />
+                <span className="truncate text-base font-semibold" title={sidebarTitle}>{sidebarTitle}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

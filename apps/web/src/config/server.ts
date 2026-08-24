@@ -78,6 +78,7 @@ const s3EnvShape = {
         DEFAULT_S3_DOWNLOAD_EXPIRE_SECONDS,
     ),
     S3_ENDPOINT: optionalTrimmedStringFromEnv(),
+    S3_FORCE_PATH_STYLE: booleanFromEnv("S3_FORCE_PATH_STYLE", false),
     S3_REGION: trimmedStringFromEnv(DEFAULT_S3_REGION),
     S3_SECRET_ACCESS_KEY: optionalTrimmedStringFromEnv(),
     S3_UPLOAD_EXPIRE_SECONDS: positiveIntegerFromEnv(
@@ -121,6 +122,7 @@ export interface S3Config {
     bucket: string
     downloadExpireSeconds: number
     endpoint: string
+    forcePathStyle?: boolean
     region: string
     secretAccessKey: string
     uploadExpireSeconds: number
@@ -141,6 +143,7 @@ function toS3Config(data: z.infer<z.ZodObject<typeof s3EnvShape>>): S3Config | n
         bucket: data.S3_BUCKET,
         downloadExpireSeconds: data.S3_DOWNLOAD_EXPIRE_SECONDS,
         endpoint: endpoint.replace(/\/+$/, ""),
+        forcePathStyle: data.S3_FORCE_PATH_STYLE,
         region: data.S3_REGION,
         secretAccessKey: data.S3_SECRET_ACCESS_KEY,
         uploadExpireSeconds: data.S3_UPLOAD_EXPIRE_SECONDS,

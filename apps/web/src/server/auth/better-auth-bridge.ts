@@ -80,7 +80,6 @@ export async function ensurePetrichorUserForBetterAuthUser(
     authUser: BetterAuthUserLike,
     options: {
         systemRole?: "USER" | "SUPER_ADMIN"
-        userType?: string
         passwordHash?: string
     } = {},
 ) {
@@ -113,7 +112,6 @@ export async function ensurePetrichorUserForBetterAuthUser(
             email: normalizedEmail,
             passwordHash: options.passwordHash ?? "",
             systemRole: options.systemRole ?? (await resolveSystemRoleForNewUser(undefined, db)),
-            userType: options.userType ?? "LOCAL",
             username: displayName,
             nickname: displayName,
             avatar: authUser.image ?? null,
@@ -243,7 +241,6 @@ export async function createLocalUserWithBetterAuth(input: {
             email: normalizedEmail,
             passwordHash,
             systemRole,
-            userType: "LOCAL",
             username: username || null,
             nickname: input.name || null,
             avatar: null,

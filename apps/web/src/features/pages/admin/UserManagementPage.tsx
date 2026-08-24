@@ -291,7 +291,6 @@ export function UserManagementPage() {
                   <TableHead className="w-[240px]">用户</TableHead>
                   <TableHead>邮箱</TableHead>
                   <TableHead className="w-[120px]">系统角色</TableHead>
-                  <TableHead className="w-[120px]">登录类型</TableHead>
                   <TableHead className="w-[180px]">创建时间</TableHead>
                   <TableHead className="w-[100px] text-right">操作</TableHead>
                 </TableRow>
@@ -303,7 +302,6 @@ export function UserManagementPage() {
                       <TableCell><div className="h-4 w-28 rounded bg-muted" /></TableCell>
                       <TableCell><div className="h-4 w-40 rounded bg-muted" /></TableCell>
                       <TableCell><div className="h-4 w-20 rounded bg-muted" /></TableCell>
-                      <TableCell><div className="h-4 w-16 rounded bg-muted" /></TableCell>
                       <TableCell><div className="h-4 w-28 rounded bg-muted" /></TableCell>
                       <TableCell><div className="ml-auto h-8 w-8 rounded bg-muted" /></TableCell>
                     </TableRow>
@@ -323,7 +321,6 @@ export function UserManagementPage() {
                             {getRoleLabel(user.systemRole)}
                           </Badge>
                         </TableCell>
-                        <TableCell>{user.userType || "-"}</TableCell>
                         <TableCell>{formatDateTime(user.createdAt)}</TableCell>
                         <TableCell className="text-right">
                           <Button

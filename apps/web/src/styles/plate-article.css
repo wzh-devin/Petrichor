@@ -17,6 +17,7 @@
 
   .plate-editor-content {
     min-height: 28rem;
+    font-family: var(--font-content);
     @apply px-5 py-4 text-sm leading-7 outline-none;
   }
 
@@ -25,6 +26,7 @@
   }
 
   .plate-article-content {
+    font-family: var(--font-content);
     @apply text-base leading-8 outline-none;
   }
 

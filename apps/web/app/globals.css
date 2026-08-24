@@ -8,7 +8,6 @@
 @import "./retypeset-fonts.css";
 @import "./retypeset-home.css";
 @import "./about-desk.css";
-@import "./project-promo.css";
 @import "./site-graph.css";
 @import "tw-shimmer";
 @import "@astryxdesign/core/astryx.css";
@@ -80,16 +79,9 @@
   --color-brand: var(--brand);
   --color-highlight: var(--highlight);
 
-  /* Maple Mono 作为全站 sans / serif / mono 字体（中文回退系统字体）。 */
-  --font-sans:
-    "Maple Mono", ui-monospace, SFMono-Regular, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --font-serif:
-    "Maple Mono", ui-serif, "Songti SC", "Noto Serif CJK SC", Georgia, "Times New Roman",
-    serif;
-  --font-mono:
-    "Maple Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
-    monospace;
+  --font-sans: var(--font-interface);
+  --font-serif: var(--font-content);
+  --font-mono: var(--font-code);
   --button-py-sm: 0.5rem;
   --button-px-sm: 1rem;
   --button-text-sm: 0.875rem;
@@ -119,6 +111,12 @@
 }
 
 :root {
+  --font-system-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-system-serif: ui-serif, "Songti SC", "Noto Serif CJK SC", Georgia, "Times New Roman", serif;
+  --font-system-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-interface: var(--font-system-sans);
+  --font-content: var(--font-interface);
+  --font-code: var(--font-maple-mono);
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -274,6 +272,13 @@
   --rainbow-speed: 2s;
 }
 
+/* Astryx 的局部主题会声明自己的字体令牌；桥接到站点字体角色，避免表格等组件绕过全局配置。 */
+[data-astryx-theme="neutral"] {
+  --font-family-body: var(--font-interface);
+  --font-family-heading: var(--font-interface);
+  --font-family-code: var(--font-code);
+}
+
 /* ── View Transition: 昼夜切换 crossfade ── */
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -349,7 +354,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-maple);
+    font-family: var(--font-interface);
     font-feature-settings: "calt" 1;
     font-variant-ligatures: contextual;
   }

@@ -17,6 +17,7 @@ export function isPublicSitePath(pathname: string) {
   return PUBLIC_SITE_PATHS.has(normalizedPathname)
     || normalizedPathname.startsWith("/p/")
     || normalizedPathname.startsWith("/b/")
+    || normalizedPathname.startsWith("/library/")
 }
 
 /**

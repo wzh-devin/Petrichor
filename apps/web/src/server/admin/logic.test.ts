@@ -63,15 +63,11 @@ describe("admin user logic", () => {
             createdAt: new Date("2026-04-27T00:00:00.000Z"),
             email: "admin@example.com",
             id: 1,
-            linuxDoAccountId: null,
-            linuxDoEmail: null,
-            linuxDoUsername: null,
             nickname: "Admin",
             passwordHash: "",
             signature: null,
             systemRole: "",
             updatedAt: new Date("2026-04-27T01:00:00.000Z"),
-            userType: "",
             username: "admin",
         })
 
@@ -84,7 +80,6 @@ describe("admin user logic", () => {
             signature: null,
             systemRole: "SUPER_ADMIN",
             updatedAt: "2026-04-27T01:00:00.000Z",
-            userType: "LINUXDO",
             username: "admin",
         })
     })

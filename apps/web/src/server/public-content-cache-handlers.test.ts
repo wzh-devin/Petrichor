@@ -27,7 +27,8 @@ vi.mock("@/server/db/client", () => dbMocks)
 vi.mock("@/server/public-content-cache", () => cacheMocks)
 vi.mock("@/server/ai/generation", () => aiMocks)
 
-import { adminAboutProfileUpdate } from "@/server/about/handlers"
+import { POST as updateAuthProfile } from "../../app/api/auth/profile/update/route"
+import { adminAboutProfileUpdate, publicAboutProfile } from "@/server/about/handlers"
 import { deleteArticle, deleteFolder, deleteKnowledgeBase, refreshArticlePublicCache, updateArticle } from "@/server/kb/handlers"
 import { generateArticleMindmap } from "@/server/kb/mindmap-handlers"
 import {
@@ -184,6 +185,60 @@ describe("public content cache invalidation points", () => {
         expect(cacheMocks.invalidatePublicAboutProfileCache).toHaveBeenCalledTimes(1)
         expect(cacheMocks.invalidatePublicArticleListCache).not.toHaveBeenCalled()
         expect(cacheMocks.invalidatePublicArticleDetailCache).not.toHaveBeenCalled()
+    })
+
+    it("公开关于资料返回首个超级管理员头像", async () => {
+        const db = createDbMock({
+            selectResults: [
+                [{
+                    createdAt: new Date("2026-04-28T00:00:00.000Z"),
+                    displayName: "站长",
+                    expertiseJson: "[\"AI\"]",
+                    id: 1,
+                    intro: "介绍",
+                    quote: "Code",
+                    roleTitle: "Developer",
+                    toolkitJson: "[\"TypeScript\"]",
+                    updatedAt: new Date("2026-04-28T01:00:00.000Z"),
+                }],
+                [{ avatar: " https://example.com/avatar.png " }],
+            ],
+        })
+        dbMocks.getDb.mockReturnValue(db)
+
+        const response = await publicAboutProfile(createGetRequest("http://localhost/api/public/about/profile"))
+
+        await expect(response.json()).resolves.toMatchObject({
+            avatar: "https://example.com/avatar.png",
+            displayName: "站长",
+        })
+    })
+
+    it("超级管理员更新头像后失效关于页公开缓存", async () => {
+        authMocks.requireCurrentUser.mockResolvedValue({ id: 1, systemRole: "SUPER_ADMIN" })
+        const db = createDbMock({
+            updateResults: [[{
+                avatar: "https://example.com/new-avatar.png",
+                createdAt: new Date("2026-04-28T00:00:00.000Z"),
+                email: "owner@example.com",
+                id: 1,
+                nickname: "站长",
+                signature: null,
+                systemRole: "SUPER_ADMIN",
+                updatedAt: new Date("2026-04-28T01:00:00.000Z"),
+                username: "owner",
+            }]],
+        })
+        dbMocks.getDb.mockReturnValue(db)
+
+        const response = await updateAuthProfile(createJsonRequest({
+            avatar: "https://example.com/new-avatar.png",
+        }, "/api/auth/profile/update"))
+
+        await expect(response.json()).resolves.toMatchObject({
+            avatar: "https://example.com/new-avatar.png",
+        })
+        expect(cacheMocks.invalidatePublicAboutProfileCache).toHaveBeenCalledTimes(1)
     })
 
     it("创建公开分享成功后失效公开文章列表缓存", async () => {

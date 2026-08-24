@@ -1,1 +1,1 @@
-export { detailImportJob as POST } from "@/server/kb/import-handlers"
+export { detailImportBatch as POST } from "@/server/kb/import-batch-handlers"

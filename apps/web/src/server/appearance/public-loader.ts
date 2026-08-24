@@ -1,8 +1,4 @@
 import { eq } from "drizzle-orm"
-import {
-    DEFAULT_RETYPESET_APPEARANCE,
-    type RetypesetAppearanceConfig,
-} from "@/lib/retypeset-themes"
 import { getDb } from "@/server/db/client"
 import { siteAppearance } from "@/server/db/schema"
 import { cachePublicContent } from "@/server/public-content-cache"
@@ -21,11 +17,11 @@ export async function loadPublicSiteAppearanceResponse() {
     return buildSiteAppearanceResponse(record)
 }
 
-export async function loadPublicSiteAppearanceForFirstPaint(): Promise<RetypesetAppearanceConfig> {
+export async function loadPublicSiteAppearanceForFirstPaint() {
     try {
         return await loadCachedPublicSiteAppearance()
     } catch {
-        return DEFAULT_RETYPESET_APPEARANCE
+        return buildSiteAppearanceResponse(null)
     }
 }
 
@@ -47,8 +43,15 @@ export async function loadSiteAppearanceOrNull() {
 
 function isMissingSiteAppearanceTableError(error: unknown) {
     const parts = collectErrorParts(error).join("\n").toLowerCase()
-    return parts.includes("petrichor_site_appearance") &&
-        (parts.includes("42p01") || parts.includes("does not exist") || parts.includes("relation"))
+    return (
+        parts.includes("petrichor_site_appearance") ||
+        parts.includes("font_config_json") ||
+        parts.includes("site_name") ||
+        parts.includes("site_description") ||
+        parts.includes("sidebar_title") ||
+        parts.includes("site_logo_json")
+    ) &&
+        (parts.includes("42p01") || parts.includes("42703") || parts.includes("does not exist") || parts.includes("relation"))
 }
 
 function collectErrorParts(error: unknown): string[] {

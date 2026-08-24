@@ -1,5 +1,4 @@
 import { useState } from "react"
-import { LogIn } from "@/components/iconimate"
 import { Link } from "react-router-dom"
 
 import { SiteLogo } from "@/components/site-logo"
@@ -49,7 +48,6 @@ export function LoginForm({
   const [name, setName] = useState("")
   const [twoFactorCode, setTwoFactorCode] = useState("")
   const [loading, setLoading] = useState(false)
-  const [linuxDoLoading, setLinuxDoLoading] = useState(false)
   const [error, setError] = useState("")
 
   const resetTwoFactor = () => {
@@ -116,12 +114,6 @@ export function LoginForm({
     setPassword("")
     setName("")
     resetTwoFactor()
-  }
-
-  const startLinuxDoLogin = () => {
-    setLinuxDoLoading(true)
-    setError("")
-    window.location.assign("/api/auth/linuxdo/login/start")
   }
 
   if (stage !== "credentials") {
@@ -258,25 +250,12 @@ export function LoginForm({
             />
           </Field>
           <Field>
-            <Button type="submit" disabled={loading || linuxDoLoading}>
+            <Button type="submit" disabled={loading}>
               {loading
                 ? (currentMode === "login" ? "登录中..." : "注册中...")
                 : (currentMode === "login" ? "登录" : "注册")}
             </Button>
           </Field>
-          {currentMode === "login" ? (
-            <Field>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loading || linuxDoLoading}
-                onClick={startLinuxDoLogin}
-              >
-                <LogIn className="h-4 w-4 mr-2" />
-                {linuxDoLoading ? "跳转中..." : "使用 Linux.do 登录"}
-              </Button>
-            </Field>
-          ) : null}
         </FieldGroup>
       </form>
       <FieldDescription className="px-6 text-center">
