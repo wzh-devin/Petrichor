@@ -12,4 +12,8 @@ describe("Markdown 导入策略", () => {
         expect(resolveImportedMarkdownTitle("正文", "guide.markdown")).toBe("guide")
         expect(resolveImportedMarkdownTitle("# 使用说明\n正文", ".md")).toBe("使用说明")
     })
+
+    it("frontmatter 标题优先于来源文件名", () => {
+        expect(resolveImportedMarkdownTitle("# 正文标题", "README.md", "元数据标题")).toBe("元数据标题")
+    })
 })

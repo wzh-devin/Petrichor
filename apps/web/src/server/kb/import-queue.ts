@@ -3,6 +3,7 @@ import { after } from "next/server"
 import { getDb } from "@/server/db/client"
 import {
     knowledgeBaseArticles,
+    knowledgeBaseArticleTags,
     knowledgeBaseImportBatches,
     knowledgeBaseImportJobPages,
     knowledgeBaseImportJobs,
@@ -216,8 +217,16 @@ async function importJob(db: Db, job: KnowledgeBaseImportJobRecord) {
                 nodeId: node.id,
                 title: document.title,
                 contentMd: document.contentMd,
+                metadataJson: document.metadata && Object.keys(document.metadata).length
+                    ? JSON.stringify(document.metadata)
+                    : null,
                 ...buildPublicArticleMetadata(document.contentMd),
             }).returning()
+            if (document.tags?.length) {
+                await tx.insert(knowledgeBaseArticleTags).values(
+                    document.tags.map((tag) => ({ articleId: article.id, tag })),
+                )
+            }
             await tx.update(knowledgeBaseImportJobs).set({
                 articleId: article.id,
                 status: "completed",

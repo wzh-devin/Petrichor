@@ -51,6 +51,7 @@ function EmbedCardShell({
 }) {
     const content = (
         <div
+            data-plate-drag-preview
             className={cn(
                 "not-prose my-3 w-full max-w-[46rem] rounded-lg border bg-card text-card-foreground shadow-sm",
                 className
@@ -87,7 +88,7 @@ function TweetEmbedCard({ url }: { url?: string }) {
     if (!tweetId) return <InvalidEmbedCard label="Tweet" />
 
     return (
-        <div className="not-prose my-3 max-w-[550px] [&_.react-tweet-theme]:my-0">
+        <div data-plate-drag-preview className="not-prose my-3 max-w-[550px] [&_.react-tweet-theme]:my-0">
             <Tweet id={tweetId} />
         </div>
     )
@@ -98,7 +99,7 @@ function SpotifyEmbedCard({ url }: { url?: string }) {
     if (!embedUrl) return <InvalidEmbedCard label="Spotify" />
 
     return (
-        <div className="not-prose my-3 w-full max-w-[46rem] overflow-hidden rounded-lg">
+        <div data-plate-drag-preview className="not-prose my-3 w-full max-w-[46rem] overflow-hidden rounded-lg">
             <iframe
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 className="block w-full border-0"
@@ -124,7 +125,7 @@ function HtmlEmbedCard({
     if (!src) return <InvalidEmbedCard label="HTML" />
 
     return (
-        <div className="not-prose my-3 w-full overflow-hidden rounded-lg border bg-card">
+        <div data-plate-drag-preview className="not-prose my-3 w-full overflow-hidden rounded-lg border bg-card">
             <iframe
                 allow="fullscreen"
                 className="block w-full border-0"

@@ -16,9 +16,8 @@
   }
 
   .plate-editor-content {
-    min-height: 28rem;
     font-family: var(--font-content);
-    @apply px-5 py-4 text-sm leading-7 outline-none;
+    @apply text-base leading-7 outline-none;
   }
 
   .plate-article {
@@ -42,8 +41,16 @@
     @apply font-semibold tracking-tight text-foreground;
   }
 
+  .plate-editor-content [data-slate-editor] > :first-child :where(h1, h2, h3, h4, h5, h6) {
+    margin-top: 0;
+  }
+
   .plate-article-content :where(h1, h2, h3, h4, h5, h6) {
     scroll-margin-top: var(--public-article-scroll-offset);
+  }
+
+  .plate-editor-content :where(h1, h2, h3, h4, h5, h6) {
+    scroll-margin-top: 5rem;
   }
 
   .plate-article-content :where(h1, h2, h3, h4, h5, h6):target {

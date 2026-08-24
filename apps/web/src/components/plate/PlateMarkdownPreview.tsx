@@ -84,11 +84,14 @@ export function PlateMarkdownPreview({
 
     React.useEffect(() => {
         if (typeof window === "undefined") return
+        const root = containerRef.current
+        if (!root) return
         const nextHeadings = headings || []
-        const frameId = window.requestAnimationFrame(() => {
-            syncHeadingIds(containerRef.current, nextHeadings)
-        })
-        return () => window.cancelAnimationFrame(frameId)
+        const sync = () => syncHeadingIds(root, nextHeadings)
+        const observer = new MutationObserver(sync)
+        observer.observe(root, { childList: true, subtree: true })
+        sync()
+        return () => observer.disconnect()
     }, [contentJson, headings, markdown])
 
     return (

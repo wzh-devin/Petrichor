@@ -24,6 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { resolveBlockDragPreviewSource } from '@/components/ui/block-drag-preview';
 import { cn } from '@/lib/utils';
 
 const UNDRAGGABLE_KEYS = [KEYS.column, KEYS.tr, KEYS.td];
@@ -167,7 +168,7 @@ function Draggable(props: PlateElementProps) {
 
       <div
         ref={previewRef}
-        className={cn('-left-0 absolute hidden w-full')}
+        className="pointer-events-none absolute left-0 hidden max-w-[calc(100vw-2rem)]"
         style={{ top: `${-previewTop}px` }}
         contentEditable={false}
       />
@@ -384,7 +385,8 @@ const createDragPreviewElements = (
 
   const resolveElement = (node: TElement, index: number) => {
     const domNode = editor.api.toDOMNode(node)!;
-    const newDomNode = domNode.cloneNode(true) as HTMLElement;
+    const previewSource = resolveBlockDragPreviewSource(domNode);
+    const newDomNode = previewSource.cloneNode(true) as HTMLElement;
 
     // Apply visual compensation for horizontal scroll
     const applyScrollCompensation = (
@@ -419,7 +421,13 @@ const createDragPreviewElements = (
       }
     };
 
-    applyScrollCompensation(domNode, newDomNode);
+    applyScrollCompensation(previewSource, newDomNode);
+
+    if (previewSource !== domNode) {
+      const { width } = previewSource.getBoundingClientRect();
+      newDomNode.style.margin = '0';
+      if (width > 0) newDomNode.style.width = `${width}px`;
+    }
 
     ids.push(node.id as string);
     const wrapper = document.createElement('div');

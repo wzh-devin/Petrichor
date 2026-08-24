@@ -14,6 +14,7 @@ import { TwoFactorEnforcementBanner } from '@/components/account/two-factor-enfo
 import { AssistantChatPage } from '@/features/pages/assistant/AssistantChatPage'
 import { KnowledgeBasePage } from '@/features/pages/knowledge/KnowledgeBasePage'
 import { KnowledgeBaseArticleEditorPage } from '@/features/pages/knowledge/KnowledgeBaseArticleEditorPage'
+import { KnowledgeBaseArticleMetadataPage } from '@/features/pages/knowledge/KnowledgeBaseArticleMetadataPage'
 import { DocLibraryListPage } from '@/features/pages/doc-library/DocLibraryListPage'
 import { DocLibraryBrowsePage } from '@/features/pages/doc-library/DocLibraryBrowsePage'
 import { KnowledgeWikiPage } from '@/features/pages/knowledge/KnowledgeWikiPage'
@@ -208,6 +209,7 @@ function AppThemeScope() {
               <Route path="doc-library/:libraryId" element={<DocLibraryBrowsePage />} />
               <Route path="wiki" element={<KnowledgeWikiPage />} />
               <Route path="knowledge/:knowledgeBaseId/articles/:articleId" element={<KnowledgeBaseArticleEditorPage />} />
+              <Route path="knowledge/:knowledgeBaseId/articles/:articleId/metadata" element={<KnowledgeBaseArticleMetadataPage />} />
               <Route path="knowledge/:knowledgeBaseId/articles/:articleId/mindmap" element={<KnowledgeBaseArticleMindMapPage />} />
               <Route path="admin/users" element={<UserManagementPage />} />
               <Route path="admin/appearance" element={<SiteAppearanceConfigPage />} />

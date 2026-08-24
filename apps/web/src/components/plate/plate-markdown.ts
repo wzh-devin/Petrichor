@@ -38,6 +38,7 @@ import {
     preprocessEmbedDirectives,
 } from "@/components/plate/plate-embed-directives"
 import { sanitizeEditorContentForPersistence } from "@/components/plate/plate-content-sanitize"
+import { normalizeMermaidCodeDrawings } from "@/components/plate/plate-mermaid"
 import { BlockDiscussion } from "@/components/ui/block-discussion"
 import {
     CodeBlockElement,
@@ -151,7 +152,7 @@ export function deserializeMarkdown(editor: PlateEditor, markdown: string): Valu
         .getApi(MarkdownPlugin)
         .markdown.deserialize(preprocessEmbedDirectives(markdown))
     if (value.length > 0) {
-        return value
+        return normalizeMermaidCodeDrawings(value)
     }
     return createEmptyValue()
 }
@@ -168,10 +169,10 @@ export function deserializeEditorContent(
         try {
             const parsed: unknown = JSON.parse(contentJson)
             if (Array.isArray(parsed)) {
-                return parsed as Value
+                return normalizeMermaidCodeDrawings(parsed as Value)
             }
             if (isRecord(parsed) && Array.isArray(parsed.value)) {
-                return parsed.value as Value
+                return normalizeMermaidCodeDrawings(parsed.value as Value)
             }
         } catch {
             // JSON 解析失败时回退到 Markdown，避免页面直接崩溃

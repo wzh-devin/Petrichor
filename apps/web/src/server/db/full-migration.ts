@@ -228,6 +228,7 @@ create table if not exists petrichor_kb_article (
     content_md text not null,
     content_json text,
     content_meta_json text,
+    metadata_json text,
     public_excerpt text,
     reading_minutes integer,
     toc_json text,

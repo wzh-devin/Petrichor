@@ -7,13 +7,17 @@ import {
   embedCardMarkdownRules,
   preprocessEmbedDirectives,
 } from '@/components/plate/plate-embed-directives';
+import { mermaidMarkdownRules } from '@/components/plate/plate-mermaid';
 
 export const MarkdownKit = [
   MarkdownPlugin.configure({
     options: {
       plainMarks: [KEYS.suggestion, KEYS.comment],
       remarkPlugins: [remarkMath, remarkGfm, remarkMdx, remarkMention],
-      rules: embedCardMarkdownRules,
+      rules: {
+        ...embedCardMarkdownRules,
+        ...mermaidMarkdownRules,
+      },
     },
     parser: {
       transformData: ({ data }) => preprocessEmbedDirectives(data),

@@ -228,6 +228,7 @@ export const knowledgeBaseArticles = pgTable("petrichor_kb_article", {
     contentMd: text("content_md").notNull(),
     contentJson: text("content_json"),
     contentMetaJson: text("content_meta_json"),
+    metadataJson: text("metadata_json"),
     publicExcerpt: text("public_excerpt"),
     readingMinutes: integer("reading_minutes"),
     tocJson: text("toc_json"),

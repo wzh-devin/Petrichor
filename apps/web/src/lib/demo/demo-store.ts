@@ -8,6 +8,7 @@ import type {
     KnowledgeBaseTreeNode,
     UserProfileResponse,
 } from "@/lib/api"
+import type { ArticleMetadata } from "@/lib/article-metadata"
 
 /*
  * 演示模式的内存数据库。
@@ -33,6 +34,7 @@ export interface DemoArticle {
     contentMd: string
     contentJson: string | null
     contentMetaJson: string | null
+    metadata: ArticleMetadata
     tags: string[]
     createdAt: string
     updatedAt: string
@@ -385,6 +387,7 @@ function buildNodes(): { nodes: DemoNode[]; articles: Map<string, DemoArticle> }
             contentMd: seed.md,
             contentJson: null,
             contentMetaJson: null,
+            metadata: {},
             tags: seed.tags,
             createdAt: daysAgo(seed.day + 2),
             updatedAt: daysAgo(seed.day),
@@ -453,6 +456,7 @@ export function articleDetail(articleId: string): ArticleDetailResponse | null {
         contentMd: article.contentMd,
         contentJson: article.contentJson,
         contentMetaJson: article.contentMetaJson,
+        metadata: article.metadata,
         aiSummary: null,
         aiSummaryGeneratedAt: null,
         aiSummaryStale: false,

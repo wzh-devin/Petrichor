@@ -66,6 +66,14 @@ function resolveBreadcrumbItems(pathname: string): BreadcrumbItem[] | undefined 
     ]
   }
 
+  const articleMetadataMatch = pathname.match(new RegExp(`^${dashboardRoutes.knowledge}/([^/]+)/articles/[^/]+/metadata$`))
+  if (articleMetadataMatch) {
+    return [
+      { label: "知识库", href: knowledgeBasePath(articleMetadataMatch[1]) },
+      { label: "文章元数据" },
+    ]
+  }
+
   const articleEditorMatch = pathname.match(new RegExp(`^${dashboardRoutes.knowledge}/([^/]+)/articles/[^/]+$`))
   if (articleEditorMatch) {
     return [

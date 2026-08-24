@@ -460,9 +460,6 @@ importers:
       heat-graph:
         specifier: ^0.0.9
         version: 0.0.9(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      html-to-image:
-        specifier: ^1.11.13
-        version: 1.11.13
       html2canvas-pro:
         specifier: ^2.0.2
         version: 2.1.0
@@ -613,6 +610,9 @@ importers:
       xlsx:
         specifier: 0.18.5
         version: 0.18.5
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
       zod:
         specifier: ^4.3.6
         version: 4.4.3
@@ -7605,9 +7605,6 @@ packages:
 
   html-entities@2.6.0:
     resolution: {integrity: sha512-kig+rMn/QOVRvr7c86gQ8lWXq+Hkv6CbAH1hLu+RG338StTpE8Z0b44SDVaqVu7HGKf27frdmUYEs9hTUX/cLQ==}
-
-  html-to-image@1.11.13:
-    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
 
   html-to-vdom@0.7.0:
     resolution: {integrity: sha512-k+d2qNkbx0JO00KezQsNcn6k2I/xSBP4yXYFLvXbcasTTDh+RDLUJS3puxqyNnpdyXWRHFGoKU7cRmby8/APcQ==}
@@ -18532,8 +18529,6 @@ snapshots:
       - '@noble/hashes'
 
   html-entities@2.6.0: {}
-
-  html-to-image@1.11.13: {}
 
   html-to-vdom@0.7.0:
     dependencies:

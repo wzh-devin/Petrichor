@@ -1,4 +1,5 @@
 import type { getDb } from "@/server/db/client"
+import type { ArticleMetadata } from "@/lib/article-metadata"
 import type {
     KnowledgeBaseImportBatchRecord,
     KnowledgeBaseImportJobRecord,
@@ -39,6 +40,8 @@ export interface PreparedImportBatch {
 export interface ImportedDocument {
     title: string
     contentMd: string
+    metadata?: ArticleMetadata
+    tags?: string[]
     relativePath: string | null
     warnings: string[]
 }

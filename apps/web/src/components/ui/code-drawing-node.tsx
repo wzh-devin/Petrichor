@@ -28,10 +28,22 @@ import {
   useSelected,
 } from 'platejs/react';
 import debounce from 'lodash/debounce.js';
-import { Trash2, DownloadIcon } from '@/components/iconimate';
+import {
+  Trash2,
+  DownloadIcon,
+  Maximize2,
+  Minus,
+  Plus,
+  RotateCcw,
+} from '@/components/iconimate';
 
 import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  normalizeMermaidSvgDataUrl,
+  readSvgDataUrlAspectRatio,
+} from '@/components/plate/plate-mermaid';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   Popover,
   PopoverAnchor,
@@ -80,7 +92,11 @@ function useCodeDrawingElement({ element }: { element: TCodeDrawingElement }) {
 
             // Only update if this is still the latest request
             if (lastRequestRef.current === requestId) {
-              setImage(imageData);
+              setImage(
+                drawingType === 'Mermaid'
+                  ? normalizeMermaidSvgDataUrl(imageData)
+                  : imageData
+              );
               setError(null);
             }
           } catch (err) {
@@ -133,7 +149,7 @@ export function CodeDrawingElement(
   const selected = useSelected();
   const isFocusedLast = useFocusedLast();
   const element = useElement<TCodeDrawingElement>();
-  const { removeNode, image, loading } = useCodeDrawingElement({ element });
+  const { removeNode, image, loading, error } = useCodeDrawingElement({ element });
 
   const handleDownload = React.useCallback(() => {
     if (!image) return;
@@ -196,7 +212,11 @@ export function CodeDrawingElement(
 
   const code = element.data?.code ?? '';
   const drawingType = element.data?.drawingType ?? 'Mermaid';
-  const drawingMode = element.data?.drawingMode ?? 'Both';
+  const configuredDrawingMode = element.data?.drawingMode ?? VIEW_MODE.Both;
+  const drawingMode = drawingType === 'Mermaid'
+    && (readOnly || configuredDrawingMode === VIEW_MODE.Both)
+    ? VIEW_MODE.Image
+    : configuredDrawingMode;
 
   const selectionCollapsed = useEditorSelector(
     (editor) => !editor.api.isExpanded(),
@@ -214,6 +234,7 @@ export function CodeDrawingElement(
           drawingMode={drawingMode}
           image={image}
           loading={loading}
+          error={error}
           onCodeChange={handleCodeChange}
           onDrawingTypeChange={handleDrawingTypeChange}
           onDrawingModeChange={handleDrawingModeChange}
@@ -269,6 +290,7 @@ function CodeDrawingPreview({
   drawingMode,
   image,
   loading,
+  error,
   onCodeChange,
   onDrawingTypeChange,
   onDrawingModeChange,
@@ -280,6 +302,7 @@ function CodeDrawingPreview({
   drawingMode: ViewMode;
   image: string;
   loading: boolean;
+  error: string | null;
   onCodeChange: (code: string) => void;
   onDrawingTypeChange: (type: CodeDrawingType) => void;
   onDrawingModeChange: (mode: ViewMode) => void;
@@ -331,12 +354,18 @@ function CodeDrawingPreview({
         <CodeDrawingPreviewArea
           image={image}
           loading={loading}
+          error={error}
           code={code}
           viewMode={viewMode}
           readOnly={readOnly}
           isMobile={isMobile}
           showBorder={showBorder}
           toolbar={toolbar}
+          onEditCode={
+            !readOnly && drawingType === 'Mermaid' && viewMode === VIEW_MODE.Image
+              ? () => onDrawingModeChange(VIEW_MODE.Code)
+              : undefined
+          }
         />
       )}
     </div>
@@ -421,7 +450,9 @@ function CodeDrawingToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="z-[100]">
-            {VIEW_MODE_ARRAY.map((item) => (
+            {VIEW_MODE_ARRAY.filter(
+              (item) => drawingType !== 'Mermaid' || item.value !== VIEW_MODE.Both
+            ).map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
               </SelectItem>
@@ -462,6 +493,10 @@ function CodeDrawingTextarea({
       setInternalCode(code);
     }
   }, [code]);
+
+  React.useEffect(() => {
+    if (isCodeOnlyMode && !readOnly) textareaRef.current?.focus();
+  }, [isCodeOnlyMode, readOnly]);
 
   const handleChange = React.useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -520,23 +555,166 @@ function CodeDrawingTextarea({
 function CodeDrawingPreviewArea({
   image,
   loading,
+  error,
   code,
   viewMode,
-  readOnly: _readOnly = false,
+  readOnly = false,
   isMobile = false,
   showBorder = false,
   toolbar,
+  onEditCode,
 }: {
   image: string;
   loading: boolean;
+  error: string | null;
   code: string;
   viewMode: ViewMode;
   readOnly?: boolean;
   isMobile?: boolean;
   showBorder?: boolean;
   toolbar?: React.ReactNode;
+  onEditCode?: () => void;
 }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const [zoom, setZoom] = React.useState(1);
+  const [spacePressed, setSpacePressed] = React.useState(false);
+  const [panning, setPanning] = React.useState(false);
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const stageRef = React.useRef<HTMLDivElement>(null);
+  const zoomRef = React.useRef(1);
+  const zoomModifierRef = React.useRef(false);
+  const zoomFrameRef = React.useRef<number | null>(null);
+  const panStartRef = React.useRef({ x: 0, y: 0, left: 0, top: 0 });
   const showImage = viewMode === VIEW_MODE.Both || viewMode === VIEW_MODE.Image;
+  const imageAspectRatio = React.useMemo(
+    () => readSvgDataUrlAspectRatio(image),
+    [image]
+  );
+
+  const handleExpandedChange = React.useCallback((open: boolean) => {
+    setExpanded(open);
+    if (!open) {
+      zoomRef.current = 1;
+      zoomModifierRef.current = false;
+      setZoom(1);
+      setSpacePressed(false);
+      setPanning(false);
+    }
+  }, []);
+
+  const changeZoom = React.useCallback((requestedZoom: number, anchor?: { x: number; y: number }) => {
+    const viewport = viewportRef.current;
+    const stage = stageRef.current;
+    const nextZoom = Math.min(3, Math.max(0.5, requestedZoom));
+    if (!viewport || !stage || nextZoom === zoomRef.current) return;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const anchorX = anchor?.x ?? viewportRect.left + viewportRect.width / 2;
+    const anchorY = anchor?.y ?? viewportRect.top + viewportRect.height / 2;
+    const ratioX = stageRect.width > 0
+      ? Math.min(1, Math.max(0, (anchorX - stageRect.left) / stageRect.width))
+      : 0.5;
+    const ratioY = stageRect.height > 0
+      ? Math.min(1, Math.max(0, (anchorY - stageRect.top) / stageRect.height))
+      : 0.5;
+
+    zoomRef.current = nextZoom;
+    setZoom(nextZoom);
+    zoomFrameRef.current = requestAnimationFrame(() => {
+      const nextStageRect = stage.getBoundingClientRect();
+      viewport.scrollLeft += nextStageRect.left + ratioX * nextStageRect.width - anchorX;
+      viewport.scrollTop += nextStageRect.top + ratioY * nextStageRect.height - anchorY;
+      zoomFrameRef.current = null;
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!expanded) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Control' || event.key === 'Meta') {
+        zoomModifierRef.current = true;
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (event.code !== 'Space' || target?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      setSpacePressed(true);
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Control' || event.key === 'Meta') {
+        zoomModifierRef.current = false;
+        return;
+      }
+      if (event.code === 'Space') {
+        setSpacePressed(false);
+        setPanning(false);
+      }
+    };
+    const handleBlur = () => {
+      setSpacePressed(false);
+      setPanning(false);
+      zoomModifierRef.current = false;
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    const handleWheel = (event: WheelEvent) => {
+      const viewport = viewportRef.current;
+      const target = event.target;
+      if (
+        !viewport
+        || !(target instanceof Node)
+        || !viewport.contains(target)
+        || (!event.ctrlKey && !event.metaKey && !zoomModifierRef.current)
+      ) return;
+      event.preventDefault();
+      if (zoomFrameRef.current !== null) return;
+      changeZoom(
+        zoomRef.current + (event.deltaY < 0 ? 0.1 : -0.1),
+        { x: event.clientX, y: event.clientY }
+      );
+    };
+    window.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('wheel', handleWheel, { capture: true });
+      if (zoomFrameRef.current !== null) cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = null;
+    };
+  }, [changeZoom, expanded]);
+
+  const handlePanStart = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!spacePressed || event.button !== 0) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    event.preventDefault();
+    viewport.setPointerCapture(event.pointerId);
+    panStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop,
+    };
+    setPanning(true);
+  }, [spacePressed]);
+
+  const handlePanMove = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!panning) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.scrollLeft = panStartRef.current.left - (event.clientX - panStartRef.current.x);
+    viewport.scrollTop = panStartRef.current.top - (event.clientY - panStartRef.current.y);
+  }, [panning]);
+
+  const handlePanEnd = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!panning) return;
+    const viewport = viewportRef.current;
+    if (viewport?.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    setPanning(false);
+  }, [panning]);
 
   return (
     <div
@@ -558,29 +736,125 @@ function CodeDrawingPreviewArea({
 
       {showImage ? (
         <div
-          className={
-            'flex flex-1 items-center justify-center rounded-md bg-muted/30 p-4'
-          }
+          className={`relative flex flex-1 items-center justify-center overflow-auto rounded-md border border-slate-200 bg-slate-50 p-4 text-slate-900 ${
+            onEditCode ? 'cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring' : ''
+          }`}
+          role={onEditCode ? 'button' : undefined}
+          tabIndex={onEditCode ? 0 : undefined}
+          title={onEditCode ? '点击编辑 Mermaid 源代码' : undefined}
+          aria-label={onEditCode ? '编辑 Mermaid 源代码' : undefined}
+          onClick={onEditCode}
+          onKeyDown={(event) => {
+            if (onEditCode && (event.key === 'Enter' || event.key === ' ')) {
+              event.preventDefault();
+              onEditCode();
+            }
+          }}
         >
           {loading && <div className="text-muted-foreground">Loading...</div>}
-          {!loading && image && (
+          {!loading && error && (
+            <div role="alert" className="text-sm text-destructive" title={error}>
+              图表语法有误，无法渲染
+            </div>
+          )}
+          {!loading && !error && image && (
             <img
               src={image}
-              alt="Code drawing"
-              className="max-h-full max-w-full object-contain"
+              alt="代码图表"
+              className={imageAspectRatio ? 'mx-auto w-full object-contain' : 'max-h-full max-w-full object-contain'}
+              style={imageAspectRatio ? { aspectRatio: imageAspectRatio } : undefined}
             />
           )}
-          {!loading && !image && (
+          {!loading && !error && !image && (
             <div className="text-muted-foreground">
               {code.trim() ? 'Rendering...' : 'Preview will appear here'}
             </div>
           )}
+          {readOnly && image && !loading && !error ? (
+            <button
+              type="button"
+              className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white/95 text-slate-700 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              aria-label="放大查看流程图"
+              title="放大查看"
+              onClick={() => setExpanded(true)}
+            >
+              <Maximize2 className="size-4" />
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="pointer-events-none flex flex-1 items-center justify-center rounded-md border bg-muted/30 p-4 opacity-0">
           {/* Placeholder to maintain height */}
         </div>
       )}
+      <Dialog open={expanded} onOpenChange={handleExpandedChange}>
+        <DialogContent className="flex h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden border-slate-200 bg-slate-50 p-0 text-slate-900 sm:max-w-[calc(100vw-2rem)]">
+          <DialogTitle className="sr-only">放大查看流程图</DialogTitle>
+          <div className="relative flex h-14 shrink-0 items-center justify-center gap-1 border-b border-slate-200 bg-white px-14">
+            <span className="absolute left-4 hidden text-xs text-slate-500 md:inline">
+              按住空格拖动 · Ctrl/⌘ + 滚轮缩放
+            </span>
+            <button
+              type="button"
+              className="inline-flex size-9 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+              aria-label="缩小流程图"
+              title="缩小"
+              disabled={zoom <= 0.5}
+              onClick={() => changeZoom(zoomRef.current - 0.25)}
+            >
+              <Minus className="size-4" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-md px-2 text-xs text-slate-700 hover:bg-slate-100"
+              aria-label="适应视图"
+              title="适应视图"
+              onClick={() => changeZoom(1)}
+            >
+              <RotateCcw className="size-3.5" />
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              className="inline-flex size-9 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+              aria-label="放大流程图"
+              title="放大"
+              disabled={zoom >= 3}
+              onClick={() => changeZoom(zoomRef.current + 0.25)}
+            >
+              <Plus className="size-4" />
+            </button>
+          </div>
+          <div
+            ref={viewportRef}
+            className={`min-h-0 flex-1 overflow-auto p-4 md:p-6 ${
+              panning ? 'cursor-grabbing select-none' : spacePressed ? 'cursor-grab select-none' : ''
+            }`}
+            onPointerDown={handlePanStart}
+            onPointerMove={handlePanMove}
+            onPointerUp={handlePanEnd}
+            onPointerCancel={handlePanEnd}
+          >
+            <div
+              ref={stageRef}
+              className="flex items-center justify-center"
+              style={{
+                width: `${zoom * 100}%`,
+                height: `${zoom * 100}%`,
+                margin: zoom <= 1 ? 'auto' : undefined,
+              }}
+            >
+              {image ? (
+                <img
+                  src={image}
+                  alt="放大的代码图表"
+                  className="h-full w-full object-contain object-center"
+                />
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

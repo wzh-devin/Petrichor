@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto"
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm"
 import type { NextRequest } from "next/server"
 import bcrypt from "bcryptjs"
+import { parseStoredArticleMetadata } from "@/lib/article-metadata"
 import { requireCurrentUser } from "@/server/auth/current-user"
 import { getDb } from "@/server/db/client"
 import {
@@ -596,6 +597,7 @@ async function loadPublicShareDetailResponse(input: PublicShareDetailLoadInput) 
         contentMd: article.contentMd,
         contentJson: article.contentJson,
         contentMetaJson: article.contentMetaJson,
+        metadata: parseStoredArticleMetadata(article.metadataJson),
         tocJson: resolvePublicArticleToc(article.contentMd, article.tocJson, article.publicContentHash),
         aiSummary,
         aiSummaryGeneratedAt: aiSummary ? formatDateOrNull(article.aiSummaryGeneratedAt) : null,

@@ -178,7 +178,6 @@
     "github-slugger": "^2.0.0",
     "gsap": "^3.15.0",
     "heat-graph": "^0.0.9",
-    "html-to-image": "^1.11.13",
     "html2canvas-pro": "^2.0.2",
     "input-otp": "^1.4.2",
     "jotai": "^2.20.1",
@@ -229,6 +228,7 @@
     "use-file-picker": "2.1.2",
     "vaul": "^1.1.2",
     "xlsx": "0.18.5",
+    "yaml": "^2.9.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.13"
   },

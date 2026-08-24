@@ -5,8 +5,6 @@ import type { PublicSharedArticleDetailResponse } from "@/lib/api"
 import type { PublicArticlePageModel } from "@/features/pages/public/PublicArticlePageView"
 import {
   buildFallbackMindmapData,
-  extractFirstImageUrl,
-  safeOrigin,
   scrollToHeading,
 } from "@/features/pages/public/public-article-utils"
 import { usePublicArticleActiveHeading } from "@/features/pages/public/usePublicArticleActiveHeading"
@@ -18,16 +16,9 @@ import { usePublicArticleToc } from "@/features/pages/public/usePublicArticleToc
 const SCROLL_OFFSET_EXTRA_PX = 16
 
 function usePublicArticleDerivedFields(
-  shareCode: string | undefined,
   data: PublicSharedArticleDetailResponse | null,
   tocAll: PublicArticlePageModel["tocAll"],
 ) {
-  const shareUrl = React.useMemo(() => {
-    if (!shareCode) return ""
-    const origin = safeOrigin()
-    return origin ? `${origin}/p/${shareCode}` : `/p/${shareCode}`
-  }, [shareCode])
-
   const title = data?.title || "未命名文章"
   const tags = Array.isArray(data?.tags) ? data.tags : null
   const createdAt = data?.createdAt ?? null
@@ -46,10 +37,7 @@ function usePublicArticleDerivedFields(
     return buildFallbackMindmapData(data.title || "文章", tocAll)
   }, [data, tocAll])
 
-  const coverImageUrl = extractFirstImageUrl(data?.contentMd ?? "")
-
   return {
-    shareUrl,
     title,
     tags,
     createdAt,
@@ -57,7 +45,6 @@ function usePublicArticleDerivedFields(
     aiSummary,
     repostSource,
     mindmapData,
-    coverImageUrl,
   }
 }
 
@@ -81,18 +68,18 @@ export function usePublicArticlePageModel(shareCode: string | undefined): Public
     headingIds,
     onScrollTo: handleScrollTo,
   })
-  const derived = usePublicArticleDerivedFields(shareCode, data, tocAll)
+  const derived = usePublicArticleDerivedFields(data, tocAll)
 
   return {
-    shareCode, shareUrl: derived.shareUrl,
+    shareCode,
     hasArticleData: Boolean(data),
     loading, error, needPassword,
     passwordId,
     accessPassword, onAccessPasswordChange: setAccessPassword, onSubmitPassword: submitPassword,
     articleRef,
-    title: derived.title, tags: derived.tags, createdAt: derived.createdAt, updatedAt: derived.updatedAt,
+    title: derived.title, tags: derived.tags,
+    createdAt: derived.createdAt, updatedAt: derived.updatedAt,
     aiSummary: derived.aiSummary,
-    coverImageUrl: derived.coverImageUrl ?? null,
     repostSource: derived.repostSource,
     tab, onTabChange: setTab,
     contentMd: data?.contentMd || "",

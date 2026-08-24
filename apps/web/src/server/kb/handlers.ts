@@ -2,6 +2,11 @@ import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm"
 import { after, type NextRequest } from "next/server"
 import { z } from "zod"
 import { getServerConfig } from "@/config/server"
+import {
+    normalizeArticleMetadata,
+    parseStoredArticleMetadata,
+    synchronizeArticleMetadata,
+} from "@/lib/article-metadata"
 import { requireCurrentUser } from "@/server/auth/current-user"
 import { getDb } from "@/server/db/client"
 import {
@@ -66,6 +71,18 @@ const optionalIdSchema = z.preprocess((value) => {
     }
     return value
 }, idSchema.nullable())
+
+const articleMetadataSchema = z.unknown().transform((value, ctx) => {
+    try {
+        return normalizeArticleMetadata(value)
+    } catch (error) {
+        ctx.addIssue({
+            code: "custom",
+            message: error instanceof Error ? error.message : "文章元数据格式无效",
+        })
+        return z.NEVER
+    }
+})
 
 const paginationSchema = {
     isAsc: z.string().optional(),
@@ -137,6 +154,7 @@ const createArticleSchema = z.object({
     contentMd: z.string(),
     contentMetaJson: z.string().optional().nullable(),
     knowledgeBaseId: idSchema,
+    metadata: articleMetadataSchema.optional().default({}),
     parentId: optionalIdSchema.optional(),
     tags: z.array(z.string()).optional().default([]),
     title: z.string().trim().min(1).max(200),
@@ -147,8 +165,14 @@ const updateArticleSchema = z.object({
     contentJson: z.string().optional().nullable(),
     contentMd: z.string(),
     contentMetaJson: z.string().optional().nullable(),
+    metadata: articleMetadataSchema.optional(),
     tags: z.array(z.string()).optional().default([]),
     title: z.string().trim().min(1).max(200),
+})
+
+const updateArticleMetadataSchema = z.object({
+    articleId: idSchema,
+    metadata: articleMetadataSchema,
 })
 
 const articleIdSchema = z.object({
@@ -882,6 +906,8 @@ export async function createArticle(request: NextRequest) {
         await assertKnowledgeBaseOwner(db, user.id, input.knowledgeBaseId)
         await assertFolderParent(db, user.id, input.knowledgeBaseId, input.parentId)
         const sortOrder = await nextSortOrder(db, user.id, input.knowledgeBaseId, input.parentId)
+        const tags = normalizeTags(input.tags)
+        const metadata = synchronizeArticleMetadata(input.metadata, input.title, tags)
 
         const [node] = await db
             .insert(knowledgeBaseNodes)
@@ -905,11 +931,12 @@ export async function createArticle(request: NextRequest) {
                 contentMd: input.contentMd,
                 contentJson: input.contentJson || null,
                 contentMetaJson: input.contentMetaJson || null,
+                metadataJson: Object.keys(metadata).length ? JSON.stringify(metadata) : null,
                 ...buildPublicArticleMetadata(input.contentMd),
             })
             .returning()
 
-        await replaceArticleTags(db, article.id, input.tags)
+        await replaceArticleTags(db, article.id, tags)
 
         return ok({
             articleId: String(article.id),
@@ -951,6 +978,7 @@ export async function detailArticle(request: NextRequest) {
             contentMd: article.contentMd,
             contentJson: article.contentJson,
             contentMetaJson: article.contentMetaJson,
+            metadata: parseStoredArticleMetadata(article.metadataJson),
             aiSummary: article.aiSummary?.trim() || null,
             aiSummaryGeneratedAt: formatDateOrNull(article.aiSummaryGeneratedAt),
             aiSummaryStale: Boolean(article.aiSummary?.trim()) && !usableAiSummary,
@@ -983,6 +1011,12 @@ export async function updateArticle(request: NextRequest) {
         if (!article) {
             throw notFound("文章不存在")
         }
+        const tags = normalizeTags(input.tags)
+        const metadata = synchronizeArticleMetadata(
+            input.metadata ?? parseStoredArticleMetadata(article.metadataJson),
+            input.title,
+            tags,
+        )
         const previousImageObjectKeys = new Set(extractS4ObjectKeysFromArticleContent(article, user.id))
         const nextImageObjectKeys = new Set(extractS4ObjectKeysFromArticleContent({
             contentJson: input.contentJson,
@@ -997,6 +1031,7 @@ export async function updateArticle(request: NextRequest) {
                 contentMd: input.contentMd,
                 contentJson: input.contentJson || null,
                 contentMetaJson: input.contentMetaJson || null,
+                metadataJson: Object.keys(metadata).length ? JSON.stringify(metadata) : null,
                 ...buildPublicArticleMetadata(input.contentMd),
                 updatedAt: new Date(),
             })
@@ -1007,7 +1042,7 @@ export async function updateArticle(request: NextRequest) {
             .set({ name: input.title, updatedAt: new Date() })
             .where(and(eq(knowledgeBaseNodes.id, article.nodeId), eq(knowledgeBaseNodes.userId, user.id)))
 
-        await replaceArticleTags(db, article.id, input.tags)
+        await replaceArticleTags(db, article.id, tags)
         scheduleUnreferencedS4Cleanup(user.id, removedImageObjectKeys, { action: "updateArticle" })
 
         invalidatePublicArticleListCache()
@@ -1016,6 +1051,46 @@ export async function updateArticle(request: NextRequest) {
             articleId: String(article.id),
             nodeId: String(article.nodeId),
         })
+    })
+}
+
+/** 只更新文章元数据，并按保留字段同步标题和标签，避免配置页覆盖正文。 */
+export async function updateArticleMetadata(request: NextRequest) {
+    return withUser(request, async (user) => {
+        const input = updateArticleMetadataSchema.parse(await readJson(request))
+        const db = getDb()
+        const [article] = await db
+            .select()
+            .from(knowledgeBaseArticles)
+            .where(and(eq(knowledgeBaseArticles.id, input.articleId), eq(knowledgeBaseArticles.userId, user.id)))
+            .limit(1)
+        if (!article) throw notFound("文章不存在")
+
+        const currentTags = await loadTags(db, article.id)
+        const title = typeof input.metadata.title === "string" ? input.metadata.title : article.title
+        const tags = Array.isArray(input.metadata.tags) ? normalizeTags(input.metadata.tags) : currentTags
+        const metadata = synchronizeArticleMetadata(input.metadata, title, tags)
+
+        await db
+            .update(knowledgeBaseArticles)
+            .set({
+                title,
+                metadataJson: Object.keys(metadata).length ? JSON.stringify(metadata) : null,
+                updatedAt: new Date(),
+            })
+            .where(and(eq(knowledgeBaseArticles.id, article.id), eq(knowledgeBaseArticles.userId, user.id)))
+
+        if (title !== article.title) {
+            await db
+                .update(knowledgeBaseNodes)
+                .set({ name: title, updatedAt: new Date() })
+                .where(and(eq(knowledgeBaseNodes.id, article.nodeId), eq(knowledgeBaseNodes.userId, user.id)))
+        }
+        if (Array.isArray(input.metadata.tags)) await replaceArticleTags(db, article.id, tags)
+
+        invalidatePublicArticleListCache()
+        invalidatePublicArticleDetailCache()
+        return ok({ articleId: String(article.id), title, tags, metadata })
     })
 }
 

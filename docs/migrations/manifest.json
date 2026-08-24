@@ -17,6 +17,9 @@
       "file": "2026-08-23-add-site-logo-config.sql"
     },
     {
+      "file": "2026-08-24-add-article-metadata.sql"
+    },
+    {
       "file": "2026-08-24-unified-document-import.sql"
     }
   ]

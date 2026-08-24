@@ -34,12 +34,10 @@ import {
 import type { DiscussionUser } from "@/components/editor/plugins/discussion-kit"
 import { FloatingToolbar } from "@/components/ui/floating-toolbar"
 import { FloatingToolbarClassicButtons } from "@/components/ui/floating-toolbar-classic-buttons"
-import { FixedToolbarButtons } from "@/components/ui/fixed-toolbar-classic-buttons"
 import { AiAssistantProvider } from "@/components/editor/ai-assistant/ai-assistant-context"
 import { AiAssistantDialog } from "@/components/editor/ai-assistant/AiAssistantDialog"
 import { EmbedCardDialog } from "@/components/editor/embed-card/embed-card-insert"
 import { Editor, EditorContainer } from "@/components/ui/editor"
-import { Toolbar } from "@/components/ui/toolbar"
 import { uploadFileToObjectStorage } from "@/lib/object-storage-upload"
 import { cn } from "@/lib/utils"
 
@@ -149,26 +147,19 @@ export const PlateMarkdownEditor = React.forwardRef<PlateMarkdownEditorHandle, P
                         onContentStateChange={onContentStateChange}
                         onMarkdownChange={onMarkdownChange}
                     />
-                    <div className={cn("isolate overflow-clip rounded-lg border bg-card", className)}>
-                        {!disabled && (
-                            <div className="sticky top-0 z-10 overflow-x-auto border-b bg-muted/25 px-1 app-scrollbar">
-                                <Toolbar className="h-auto w-max min-w-full flex-nowrap">
-                                    <FixedToolbarButtons />
-                                </Toolbar>
-                            </div>
-                        )}
+                    <div className={cn("isolate", className)}>
                         <EditorContainer
                             className={cn(
-                                "plate-editor-content app-scrollbar min-h-[36rem] overflow-y-auto",
+                                "plate-editor-content min-h-[50vh] overflow-visible!",
                                 disabled ? "cursor-not-allowed opacity-80" : ""
                             )}
                         >
                             <Editor
-                                className="min-h-[36rem]"
+                                className="min-h-[50vh] pb-32"
                                 disabled={disabled}
                                 placeholder={placeholder}
                                 readOnly={disabled}
-                                variant="fullWidth"
+                                variant="none"
                             />
                         </EditorContainer>
                     </div>

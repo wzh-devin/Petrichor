@@ -44,6 +44,10 @@ export function knowledgeBaseArticleMindMapPath(knowledgeBaseId: string, article
     return `${knowledgeBaseArticlePath(knowledgeBaseId, articleId)}/mindmap`
 }
 
+export function knowledgeBaseArticleMetadataPath(knowledgeBaseId: string, articleId: string) {
+    return `${knowledgeBaseArticlePath(knowledgeBaseId, articleId)}/metadata`
+}
+
 export function knowledgeBaseImportsPath(knowledgeBaseId: string) {
     return `${knowledgeBasePath(knowledgeBaseId)}/imports`
 }

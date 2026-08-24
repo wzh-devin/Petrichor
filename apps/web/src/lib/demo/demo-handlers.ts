@@ -13,6 +13,7 @@ import {
     touchKb,
 } from "./demo-store"
 import { demoThreadDelete, demoThreadDetail, demoThreadList, demoPlanPatch, ensureDemoThreads } from "./demo-assistant"
+import { normalizeArticleMetadata } from "@/lib/article-metadata"
 
 /*
  * 演示模式的 mock 路由表：键为 "METHOD /path"（不含 /api 前缀）。
@@ -223,6 +224,7 @@ const handlers: Record<string, DemoHandler> = {
             contentMd: str(body.contentMd),
             contentJson: typeof body.contentJson === "string" ? body.contentJson : null,
             contentMetaJson: typeof body.contentMetaJson === "string" ? body.contentMetaJson : null,
+            metadata: normalizeArticleMetadata(body.metadata),
             tags: Array.isArray(body.tags) ? body.tags.map(String) : [],
             createdAt: now,
             updatedAt: now,
@@ -237,12 +239,28 @@ const handlers: Record<string, DemoHandler> = {
         article.contentMd = str(body.contentMd)
         article.contentJson = typeof body.contentJson === "string" ? body.contentJson : null
         article.contentMetaJson = typeof body.contentMetaJson === "string" ? body.contentMetaJson : null
+        article.metadata = body.metadata === undefined
+            ? article.metadata
+            : normalizeArticleMetadata(body.metadata)
         article.tags = Array.isArray(body.tags) ? body.tags.map(String) : article.tags
         article.updatedAt = new Date().toISOString()
         const node = demoStore.nodes.find((item) => item.id === article.nodeId)
         if (node) node.name = article.title
         touchKb(article.knowledgeBaseId)
         return ok({ articleId: article.articleId, nodeId: article.nodeId })
+    },
+    "POST /kb/article/metadata/update": (body) => {
+        const article = demoStore.articles.get(str(body.articleId))
+        if (!article) return notFound("文章不存在")
+        const metadata = normalizeArticleMetadata(body.metadata)
+        article.metadata = metadata
+        if (typeof metadata.title === "string") article.title = metadata.title
+        if (Array.isArray(metadata.tags)) article.tags = metadata.tags
+        article.updatedAt = new Date().toISOString()
+        const node = demoStore.nodes.find((item) => item.id === article.nodeId)
+        if (node) node.name = article.title
+        touchKb(article.knowledgeBaseId)
+        return ok({ articleId: article.articleId, title: article.title, tags: article.tags, metadata })
     },
     "POST /kb/article/delete": (body) => {
         const article = demoStore.articles.get(str(body.articleId))

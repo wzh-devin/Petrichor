@@ -6,6 +6,7 @@ import {
     dashboardRoutes,
     isDashboardSectionPath,
     knowledgeBaseArticleMindMapPath,
+    knowledgeBaseArticleMetadataPath,
     knowledgeBaseArticlePath,
     knowledgeBasePath,
 } from "./dashboard-routes"
@@ -29,6 +30,7 @@ describe("dashboard routes", () => {
         expect(knowledgeBasePath("kb1")).toBe("/dashboard/knowledge/kb1")
         expect(knowledgeBaseArticlePath("kb1", "article1")).toBe("/dashboard/knowledge/kb1/articles/article1")
         expect(knowledgeBaseArticleMindMapPath("kb1", "article1")).toBe("/dashboard/knowledge/kb1/articles/article1/mindmap")
+        expect(knowledgeBaseArticleMetadataPath("kb1", "article1")).toBe("/dashboard/knowledge/kb1/articles/article1/metadata")
     })
 
     it("normalizes relative dashboard paths", () => {

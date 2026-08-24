@@ -1,6 +1,7 @@
 import axios, { type AxiosResponse } from "axios"
 
 import { installDemoAdapter } from "@/lib/demo/demo-adapter"
+import type { ArticleMetadata } from "@/lib/article-metadata"
 import type { SiteFontConfig } from "@/lib/font-config"
 import type { SiteLogoAsset } from "@/lib/site-branding"
 
@@ -854,6 +855,7 @@ export interface ArticleDetailResponse {
   contentMd: string
   contentJson?: string | null
   contentMetaJson?: string | null
+  metadata: ArticleMetadata
   aiSummary?: string | null
   aiSummaryGeneratedAt?: string | null
   aiSummaryStale?: boolean
@@ -871,6 +873,7 @@ export interface UpdateArticleRequest {
   contentMd: string
   contentJson?: string | null
   contentMetaJson?: string | null
+  metadata?: ArticleMetadata
   tags: string[]
 }
 
@@ -886,6 +889,7 @@ export interface CreateArticleRequest {
   contentMd: string
   contentJson?: string | null
   contentMetaJson?: string | null
+  metadata?: ArticleMetadata
   tags?: string[]
 }
 
@@ -916,10 +920,24 @@ export interface ArticlePublicCacheRefreshResponse {
   refreshedAt: string
 }
 
+export interface UpdateArticleMetadataRequest {
+  articleId: string
+  metadata: ArticleMetadata
+}
+
+export interface UpdateArticleMetadataResponse {
+  articleId: string
+  title: string
+  tags: string[]
+  metadata: ArticleMetadata
+}
+
 export const knowledgeBaseArticleApi = {
   create: (data: CreateArticleRequest) => api.post<CreateArticleResponse>("/kb/article/create", data),
   detail: (articleId: string) => api.post<ArticleDetailResponse>("/kb/article/detail", { articleId }),
   update: (data: UpdateArticleRequest) => api.post<UpdateArticleResponse>("/kb/article/update", data),
+  updateMetadata: (data: UpdateArticleMetadataRequest) =>
+    api.post<UpdateArticleMetadataResponse>("/kb/article/metadata/update", data),
   delete: (articleId: string) => api.post<DeleteArticleResponse>("/kb/article/delete", { articleId }),
   generateSummary: (data: ArticleSummaryGenerateRequest) =>
     api.post<ArticleSummaryGenerateResponse>("/kb/article/summary/generate", data),
@@ -1752,6 +1770,7 @@ export interface PublicSharedArticleDetailResponse {
   contentMd: string
   contentJson?: string | null
   contentMetaJson?: string | null
+  metadata: ArticleMetadata
   tocJson?: PublicArticleTocItem[] | null
   aiSummary?: string | null
   aiSummaryGeneratedAt?: string | null

@@ -1,5 +1,6 @@
 import path from "node:path"
 import { z } from "zod"
+import { parseArticleFrontmatter } from "@/lib/article-metadata"
 import { badRequest } from "@/server/http/response"
 import { fetchS3ObjectBytes } from "@/server/upload/s3-fetch"
 import type {
@@ -27,10 +28,10 @@ export function normalizeImportRelativePath(rawPath: string): string {
     return segments.join("/")
 }
 
-export function resolveImportedMarkdownTitle(markdown: string, fileName: string): string {
+export function resolveImportedMarkdownTitle(markdown: string, fileName: string, metadataTitle?: string): string {
     const fileTitle = path.basename(fileName).replace(/\.(md|markdown)$/i, "").trim()
     const heading = markdown.match(/^#\s+(.+)$/m)?.[1]?.trim()
-    return (fileTitle || heading || "未命名文档").slice(0, 200)
+    return (metadataTitle?.trim() || fileTitle || heading || "未命名文档").slice(0, 200)
 }
 
 function assertOwnedObjectKey(objectKey: string, userId: number) {
@@ -80,13 +81,21 @@ export const markdownImportAdapter: ImportSourceAdapter = {
         if (source.data.byteLength > MAX_MARKDOWN_BYTES) {
             throw new Error("Markdown 文件不能超过 2 MB")
         }
-        const contentMd = source.data.toString("utf8").trim()
-        if (!contentMd) {
+        const rawMarkdown = source.data.toString("utf8").trim()
+        if (!rawMarkdown) {
             throw new Error("Markdown 文件没有可导入的正文内容")
         }
+        const parsed = parseArticleFrontmatter(rawMarkdown)
+        const contentMd = parsed.contentMd.trim()
         return {
-            title: resolveImportedMarkdownTitle(contentMd, item.fileName),
+            title: resolveImportedMarkdownTitle(
+                contentMd,
+                item.fileName,
+                typeof parsed.metadata.title === "string" ? parsed.metadata.title : undefined,
+            ),
             contentMd,
+            metadata: parsed.metadata,
+            tags: Array.isArray(parsed.metadata.tags) ? parsed.metadata.tags : [],
             relativePath: item.relativePath,
             warnings: [],
         }

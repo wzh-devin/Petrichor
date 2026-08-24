@@ -1,6 +1,6 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { AlertCircle, ChevronLeft, ChevronUp, FileDown, FileUp, Flame, Hash, Plus, RefreshCw, Save, Share2, Sparkles, X } from "@/components/iconimate"
+import { AlertCircle, ChevronLeft, ChevronUp, FileDown, FileUp, Flame, Hash, MoreHorizontal, Plus, RefreshCw, Save, Settings2, Share2, Sparkles, X } from "@/components/iconimate"
 import { toast } from "sonner"
 import { useNavigate, useParams } from "react-router-dom"
 
@@ -25,14 +25,26 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   knowledgeBaseArticleApi,
   publicArticleShareApi,
   type ArticleDetailResponse,
   authApi,
 } from "@/lib/api"
+import {
+  normalizeArticleMetadata,
+  parseArticleFrontmatter,
+  type ArticleMetadata,
+} from "@/lib/article-metadata"
 import type { DiscussionUser } from "@/components/editor/plugins/discussion-kit"
 import { buildToc, type TocItem } from "@/features/pages/public/public-article-utils"
-import { dashboardRoutes, knowledgeBasePath } from "@/lib/dashboard-routes"
+import { dashboardRoutes, knowledgeBaseArticleMetadataPath, knowledgeBasePath } from "@/lib/dashboard-routes"
 import { cn } from "@/lib/utils"
 
 const AI_CITATION_HIGHLIGHT_CLASSES = [
@@ -136,6 +148,7 @@ function buildCurrentSnapshot(
   contentMd: string,
   contentJson: string,
   contentMetaJson: string,
+  metadata: ArticleMetadata,
   tags: string[],
 ): ArticleEditorSnapshot {
   return {
@@ -143,6 +156,7 @@ function buildCurrentSnapshot(
     contentMd,
     contentJson,
     contentMetaJson,
+    metadata,
     tags: normalizeTags(tags),
   }
 }
@@ -167,11 +181,13 @@ function readDraftRecord(articleId: string): ArticleDraftRecord | null {
     ) {
       return null
     }
+    const metadata = normalizeArticleMetadata(parsed.metadata ?? {})
     return {
       title: parsed.title,
       contentMd: parsed.contentMd,
       contentJson: parsed.contentJson,
       contentMetaJson: parsed.contentMetaJson,
+      metadata,
       tags: normalizeTags(parsed.tags.filter((item): item is string => typeof item === "string")),
       updatedAt: parsed.updatedAt,
       baseUpdatedAt: typeof parsed.baseUpdatedAt === "string" ? parsed.baseUpdatedAt : null,
@@ -281,6 +297,7 @@ export function KnowledgeBaseArticleEditorPage() {
   const [contentMd, setContentMd] = React.useState("")
   const [contentJson, setContentJson] = React.useState("")
   const [contentMetaJson, setContentMetaJson] = React.useState("")
+  const [metadata, setMetadata] = React.useState<ArticleMetadata>({})
   const [tags, setTags] = React.useState<string[]>([])
   const [tagDraft, setTagDraft] = React.useState("")
   const [tagInputVisible, setTagInputVisible] = React.useState(false)
@@ -294,9 +311,6 @@ export function KnowledgeBaseArticleEditorPage() {
   const [burnDialogOpen, setBurnDialogOpen] = React.useState(false)
   const [recoverableDraft, setRecoverableDraft] = React.useState<ArticleDraftRecord | null>(null)
   const [activeHeadingId, setActiveHeadingId] = React.useState("")
-  // null = not yet measured; renders TOC only after we have the correct values
-  const [tocRight, setTocRight] = React.useState<number | null>(null)
-  const [tocTop, setTocTop] = React.useState<number | null>(null)
   const loadedArticleId = loaded?.articleId || ""
   const readOnly = Boolean(loaded?.readOnly)
   const isOwner = loaded?.permission === "OWNER"
@@ -305,8 +319,8 @@ export function KnowledgeBaseArticleEditorPage() {
     [contentMd]
   )
   const currentSnapshot = React.useMemo(
-    () => buildCurrentSnapshot(title, contentMd, contentJson, contentMetaJson, tags),
-    [contentJson, contentMd, contentMetaJson, tags, title]
+    () => buildCurrentSnapshot(title, contentMd, contentJson, contentMetaJson, metadata, tags),
+    [contentJson, contentMd, contentMetaJson, metadata, tags, title]
   )
   const loadedSnapshot = React.useMemo(
     () => (loaded ? buildSnapshotFromArticleDetail(loaded) : null),
@@ -402,46 +416,6 @@ export function KnowledgeBaseArticleEditorPage() {
     if (tagInputVisible) tagInputRef.current?.focus()
   }, [tagInputVisible])
 
-  // tocRight: editor's horizontal position only changes on resize (not scroll)
-  React.useLayoutEffect(() => {
-    const calcRight = () => {
-      const el = editorWrapperRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      setTocRight(Math.max(4, window.innerWidth - rect.right + 8))
-    }
-    calcRight()
-    const ro = new ResizeObserver(calcRight)
-    ro.observe(document.documentElement)
-    if (editorWrapperRef.current) ro.observe(editorWrapperRef.current)
-    window.addEventListener("resize", calcRight)
-    return () => { ro.disconnect(); window.removeEventListener("resize", calcRight) }
-  }, [])
-
-  // tocTop: editor's vertical position changes on scroll — clamp TOC so it never
-  // floats above the editor card's top (toolbar area is ~52px tall)
-  const calcTop = React.useCallback(() => {
-    const el = editorWrapperRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const vh = window.innerHeight
-    const normalTop = vh * 0.2
-    // Don't let TOC go above the editor card's top + toolbar offset
-    const minTop = Math.max(rect.top + 52, 0)
-    setTocTop(Math.min(Math.max(normalTop, minTop), vh * 0.75))
-  }, [])
-
-  React.useLayoutEffect(() => {
-    calcTop()
-    window.addEventListener("resize", calcTop)
-    return () => window.removeEventListener("resize", calcTop)
-  }, [calcTop])
-
-  React.useEffect(() => {
-    window.addEventListener("scroll", calcTop, { passive: true })
-    return () => window.removeEventListener("scroll", calcTop)
-  }, [calcTop])
-
   React.useEffect(() => {
     authApi.me().then((res) => {
       setCurrentUser({
@@ -477,6 +451,7 @@ export function KnowledgeBaseArticleEditorPage() {
         setContentMd(res.data.contentMd || "")
         setContentJson(res.data.contentJson || "")
         setContentMetaJson(res.data.contentMetaJson || "")
+        setMetadata(res.data.metadata || {})
         setTags(Array.isArray(res.data.tags) ? normalizeTags(res.data.tags) : [])
         setAiSummary(res.data.aiSummary?.trim() || null)
         setAiSummaryGeneratedAt(res.data.aiSummaryGeneratedAt ?? null)
@@ -604,6 +579,7 @@ export function KnowledgeBaseArticleEditorPage() {
         contentMd: snapshot.contentMd,
         contentJson: snapshot.contentJson || null,
         contentMetaJson: snapshot.contentMetaJson || null,
+        metadata: snapshot.metadata,
         tags: normalizedTags,
       })
       publicArticleShareApi.invalidateClientCache()
@@ -620,6 +596,7 @@ export function KnowledgeBaseArticleEditorPage() {
           contentMd: snapshot.contentMd,
           contentJson: snapshot.contentJson || null,
           contentMetaJson: snapshot.contentMetaJson || null,
+          metadata: snapshot.metadata,
           tags: normalizedTags,
           updatedAt: savedAt,
         }
@@ -660,6 +637,13 @@ export function KnowledgeBaseArticleEditorPage() {
     }
   }, [knowledgeBaseId, navigate, saveNow])
 
+  const handleOpenMetadataPage = React.useCallback(async () => {
+    const currentArticleId = articleIdRef.current
+    if (!knowledgeBaseId || !currentArticleId || readOnlyRef.current) return
+    if (dirtyRef.current && !(await saveNow("MANUAL"))) return
+    navigate(knowledgeBaseArticleMetadataPath(knowledgeBaseId, currentArticleId))
+  }, [knowledgeBaseId, navigate, saveNow])
+
   const handleContentStateChange = React.useCallback(
     (next: { markdown: string; contentJson: string; contentMetaJson: string }) => {
       setContentMd(next.markdown)
@@ -691,11 +675,12 @@ export function KnowledgeBaseArticleEditorPage() {
         latest?.markdown ?? contentMd,
         latest?.contentJson ?? contentJson,
         latest?.contentMetaJson ?? contentMetaJson,
+        metadata,
         tags
       )
       return buildArticleSnapshotKey(latestSnapshot) !== buildArticleSnapshotKey(loadedSnapshot)
     },
-    [contentJson, contentMd, contentMetaJson, loadedSnapshot, recoverableDraft, tags, title]
+    [contentJson, contentMd, contentMetaJson, loadedSnapshot, metadata, recoverableDraft, tags, title]
   )
 
   const triggerArticleImport = React.useCallback(() => {
@@ -738,6 +723,7 @@ export function KnowledgeBaseArticleEditorPage() {
       }
 
       let markdown = ""
+      let importedMetadata: ArticleMetadata | null = null
       if (isMarkdownImport) {
         try {
           markdown = await file.text()
@@ -748,6 +734,14 @@ export function KnowledgeBaseArticleEditorPage() {
         const markdownValidationError = validateMarkdownImportText(markdown)
         if (markdownValidationError) {
           showArticleImportError(markdownValidationError)
+          return
+        }
+        try {
+          const parsed = parseArticleFrontmatter(markdown)
+          markdown = parsed.contentMd
+          importedMetadata = parsed.hasFrontmatter ? parsed.metadata : null
+        } catch (error) {
+          showArticleImportError(error instanceof Error ? error.message : "Markdown frontmatter 解析失败")
           return
         }
       }
@@ -770,8 +764,16 @@ export function KnowledgeBaseArticleEditorPage() {
           return
         }
 
-        const nextTitle = resolveMarkdownImportTitle(importedState.markdown, file.name)
+        const nextTitle = typeof importedMetadata?.title === "string"
+          ? importedMetadata.title
+          : resolveMarkdownImportTitle(importedState.markdown, file.name)
+        const nextMetadata = importedMetadata ?? metadata
+        const nextTags = Array.isArray(importedMetadata?.tags)
+          ? normalizeTags(importedMetadata.tags)
+          : normalizeTags(tags)
         setTitle(nextTitle)
+        setMetadata(nextMetadata)
+        setTags(nextTags)
         handleContentStateChange(importedState)
         const draftArticleId = loaded?.articleId || articleIdRef.current
         if (draftArticleId) {
@@ -780,7 +782,8 @@ export function KnowledgeBaseArticleEditorPage() {
             contentMd: importedState.markdown,
             contentJson: importedState.contentJson,
             contentMetaJson: importedState.contentMetaJson,
-            tags: normalizeTags(tags),
+            metadata: nextMetadata,
+            tags: nextTags,
             updatedAt: new Date().toISOString(),
             baseUpdatedAt: loaded?.updatedAt || null,
           })
@@ -826,6 +829,7 @@ export function KnowledgeBaseArticleEditorPage() {
       loaded?.articleId,
       loaded?.updatedAt,
       loading,
+      metadata,
       saving,
       showArticleImportError,
       syncLatestEditorContentState,
@@ -981,8 +985,10 @@ export function KnowledgeBaseArticleEditorPage() {
     const headings = Array.from(container.querySelectorAll("h2, h3, h4")) as HTMLElement[]
     const el = headings[idx]
     if (!el) return
-    const absTop = el.getBoundingClientRect().top + window.scrollY - 80
-    window.scrollTo({ top: Math.max(0, absTop), behavior: "smooth" })
+    el.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    })
     setActiveHeadingId(id)
   }, [navToc])
 
@@ -1046,6 +1052,7 @@ export function KnowledgeBaseArticleEditorPage() {
     setContentMd(recoverableDraft.contentMd)
     setContentJson(recoverableDraft.contentJson)
     setContentMetaJson(recoverableDraft.contentMetaJson)
+    setMetadata(recoverableDraft.metadata)
     setTags(normalizeTags(recoverableDraft.tags))
     setRecoverableDraft(null)
     setError(null)
@@ -1144,7 +1151,7 @@ export function KnowledgeBaseArticleEditorPage() {
   }
 
   return (
-    <div className="w-full px-6 py-6 lg:px-10">
+    <div className="w-full px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
       <input
         ref={markdownFileInputRef}
         type="file"
@@ -1154,7 +1161,7 @@ export function KnowledgeBaseArticleEditorPage() {
       />
 
       {/* Action bar */}
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <Button
             type="button"
@@ -1168,7 +1175,7 @@ export function KnowledgeBaseArticleEditorPage() {
             返回目录
           </Button>
           {loaded?.path ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div className="hidden min-w-0 items-center gap-2 sm:flex">
               <p className="truncate text-xs text-muted-foreground/60">{loaded.path}</p>
               {readOnly ? <Badge variant="secondary">只读</Badge> : null}
               {!readOnly ? (
@@ -1188,7 +1195,7 @@ export function KnowledgeBaseArticleEditorPage() {
             </div>
           ) : <span />}
         </div>
-        <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:shrink-0 sm:justify-end">
+        <div className="flex shrink-0 items-center gap-1">
           {!readOnly ? (
             <Button
               variant="ghost" size="sm"
@@ -1204,63 +1211,6 @@ export function KnowledgeBaseArticleEditorPage() {
           ) : null}
           {!readOnly ? (
             <Button
-              variant="ghost" size="sm"
-              className="h-8 gap-1.5 text-muted-foreground hover:text-foreground px-2.5"
-              disabled={!articleId || loading || saving || importingArticleFile}
-              onClick={triggerArticleImport}
-            >
-              <FileUp className="size-3.5" />
-              <span className="text-sm hidden sm:inline">
-                {importingArticleFile ? "导入中..." : "导入"}
-              </span>
-            </Button>
-          ) : null}
-          <Button
-            variant="ghost" size="sm"
-            className="h-8 gap-1.5 text-muted-foreground hover:text-foreground px-2.5"
-            disabled={loading || !loaded}
-            onClick={handleExportMarkdown}
-          >
-            <FileDown className="size-3.5" />
-            <span className="text-sm hidden sm:inline">导出</span>
-          </Button>
-          {isOwner ? (
-            <Button
-              variant="ghost" size="sm"
-              className="h-8 gap-1.5 text-muted-foreground hover:text-foreground px-2.5"
-              disabled={!articleId}
-              onClick={() => setShareDialogOpen(true)}
-            >
-              <Share2 className="size-3.5" />
-              <span className="text-sm hidden sm:inline">公开分享</span>
-            </Button>
-          ) : null}
-          {isOwner ? (
-            <Button
-              variant="ghost" size="sm"
-              className="h-8 gap-1.5 text-muted-foreground hover:text-foreground px-2.5"
-              disabled={!articleId}
-              onClick={() => setBurnDialogOpen(true)}
-            >
-              <Flame className="size-3.5" />
-              <span className="text-sm hidden sm:inline">阅后即焚</span>
-            </Button>
-          ) : null}
-          {!readOnly ? (
-            <Button
-              variant="ghost" size="sm"
-              className="h-8 gap-1.5 text-muted-foreground hover:text-foreground px-2.5"
-              disabled={!articleId || loading || saving || dirty || refreshingPublicCache}
-              onClick={() => void handleRefreshPublicCache()}
-            >
-              <RefreshCw className={cn("size-3.5", refreshingPublicCache && "animate-spin")} />
-              <span className="text-sm hidden sm:inline">
-                {refreshingPublicCache ? "刷新中..." : "刷新缓存"}
-              </span>
-            </Button>
-          ) : null}
-          {!readOnly ? (
-            <Button
               size="sm" className="h-8 gap-1.5 px-4"
               onClick={() => void saveNow("MANUAL")}
               disabled={!dirty || loading || saving || !articleId}
@@ -1269,117 +1219,200 @@ export function KnowledgeBaseArticleEditorPage() {
               {saving && saveIntent !== "AUTO" ? "保存中..." : dirty ? "保存" : "已保存"}
             </Button>
           ) : null}
-        </div>
-      </div>
-
-      {recoverableDraft && !readOnly ? (
-        <div className="mb-6 flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-4 text-sm text-amber-900 dark:text-amber-100">
-          <div className="flex items-start gap-2.5">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">检测到本地草稿</p>
-              <p className="mt-1 text-amber-800/80 dark:text-amber-100/80">
-                上次本地草稿时间为 {recoverableDraft.updatedAt}。如果这是异常退出前的内容，可以直接恢复。
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" onClick={restoreDraft}>
-              恢复草稿
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={discardDraft}>
-              忽略草稿
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Error */}
-      {error && (
-        <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 mb-6 text-sm text-destructive">
-          <AlertCircle className="size-4 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Title */}
-      <textarea
-        ref={titleRef}
-        value={title}
-        placeholder="无标题"
-        disabled={loading || readOnly}
-        rows={1}
-        onChange={(e) => setTitle(e.target.value)}
-        className="w-full resize-none overflow-hidden bg-transparent border-0 outline-none text-3xl font-bold leading-tight placeholder:text-muted-foreground/25 disabled:opacity-60 mb-3"
-      />
-
-      {/* Tags row */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-8 min-h-[26px]">
-        {tags.map((tag) => (
-          <Badge key={tag} variant="secondary" className="gap-1 pr-1.5 h-5 text-xs font-normal rounded-full">
-            <Hash className="size-2.5 opacity-40" />
-            <span className="truncate max-w-[12rem]">{tag}</span>
-            {!readOnly ? (
-              <button
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
                 type="button"
-                className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 opacity-40 hover:opacity-80"
-                onClick={() => removeTag(tag)}
-                aria-label={`移除标签：${tag}`}
-                disabled={loading}
+                variant="ghost"
+                size="icon-sm"
+                aria-label="更多操作"
+                disabled={loading || !loaded}
               >
-                <X className="size-2.5" />
-              </button>
-            ) : null}
-          </Badge>
-        ))}
-        {tagInputVisible && !readOnly ? (
-          <Input
-            ref={tagInputRef}
-            value={tagDraft}
-            placeholder="标签名..."
-            disabled={loading}
-            className="h-5 w-28 text-xs rounded-full px-2.5 py-0 border-dashed"
-            onChange={(e) => setTagDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); commitTag() }
-              else if (e.key === "Escape") { setTagDraft(""); setTagInputVisible(false) }
-            }}
-            onBlur={() => { if (tagDraft.trim()) addTag(); setTagInputVisible(false) }}
-          />
-        ) : (
-          !readOnly && tags.length < 20 && (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-xs text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition-colors"
-              onClick={() => setTagInputVisible(true)}
-              disabled={loading}
-            >
-              <Plus className="size-2.5" />
-              添加标签
-            </button>
-          )
-        )}
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {!readOnly ? (
+                <DropdownMenuItem
+                  disabled={!articleId || saving}
+                  onSelect={() => void handleOpenMetadataPage()}
+                >
+                  <Settings2 />
+                  文章元数据
+                </DropdownMenuItem>
+              ) : null}
+              {!readOnly ? <DropdownMenuSeparator /> : null}
+              {!readOnly ? (
+                <DropdownMenuItem
+                  disabled={!articleId || saving || importingArticleFile}
+                  onSelect={triggerArticleImport}
+                >
+                  <FileUp />
+                  {importingArticleFile ? "导入中..." : "导入"}
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem onSelect={handleExportMarkdown}>
+                <FileDown />
+                导出 Markdown
+              </DropdownMenuItem>
+              {isOwner || !readOnly ? <DropdownMenuSeparator /> : null}
+              {isOwner ? (
+                <DropdownMenuItem onSelect={() => setShareDialogOpen(true)}>
+                  <Share2 />
+                  公开分享
+                </DropdownMenuItem>
+              ) : null}
+              {isOwner ? (
+                <DropdownMenuItem onSelect={() => setBurnDialogOpen(true)}>
+                  <Flame />
+                  阅后即焚
+                </DropdownMenuItem>
+              ) : null}
+              {!readOnly ? (
+                <DropdownMenuItem
+                  disabled={!articleId || saving || dirty || refreshingPublicCache}
+                  onSelect={() => void handleRefreshPublicCache()}
+                >
+                  <RefreshCw className={cn(refreshingPublicCache && "animate-spin")} />
+                  {refreshingPublicCache ? "刷新中..." : "刷新公开缓存"}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      <ArticleSummaryPreview
-        summary={aiSummary}
-        generatedAt={aiSummaryGeneratedAt}
-        stale={aiSummaryStale || articleContentDirty}
-      />
+      <div className="mx-auto grid w-full max-w-[71rem] grid-cols-1 gap-x-8 xl:grid-cols-[minmax(0,56rem)_13rem]">
+        <div className="min-w-0">
+          {recoverableDraft && !readOnly ? (
+            <div className="mb-6 flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/8 px-4 py-4 text-sm text-amber-900 dark:text-amber-100">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">检测到本地草稿</p>
+                  <p className="mt-1 text-amber-800/80 dark:text-amber-100/80">
+                    上次本地草稿时间为 {recoverableDraft.updatedAt}。如果这是异常退出前的内容，可以直接恢复。
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" onClick={restoreDraft}>
+                  恢复草稿
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={discardDraft}>
+                  忽略草稿
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
-      {/* Editor — wrapped so we can measure its right edge for TOC positioning */}
-      <div ref={editorWrapperRef}>
-        <PlateMarkdownEditor
-          ref={markdownEditorRef}
-          key={`${loaded?.articleId ?? `pending-${articleId ?? "unknown"}`}:${currentUser?.id ?? 'anon'}`}
-          currentUser={currentUser ?? undefined}
-          initialMarkdown={contentMd}
-          initialContentJson={contentJson}
-          initialContentMetaJson={contentMetaJson}
-          disabled={loading || readOnly}
-          placeholder="请输入文章内容..."
-          onContentStateChange={handleContentStateChange}
-        />
+          {/* Error */}
+          {error && (
+            <div className="mb-6 flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Title */}
+          <textarea
+            ref={titleRef}
+            value={title}
+            placeholder="无标题"
+            disabled={loading || readOnly}
+            rows={1}
+            onChange={(e) => setTitle(e.target.value)}
+            className="mb-3 w-full resize-none overflow-hidden border-0 bg-transparent text-3xl font-bold leading-tight outline-none placeholder:text-muted-foreground disabled:opacity-60"
+          />
+
+          {/* Tags row */}
+          <div className="mb-6 flex min-h-[26px] flex-wrap items-center gap-1.5">
+            {tags.map((tag) => (
+              <Badge key={tag} variant="secondary" className="gap-1 pr-1.5 h-5 text-xs font-normal rounded-full">
+                <Hash className="size-2.5 opacity-40" />
+                <span className="truncate max-w-[12rem]">{tag}</span>
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 opacity-40 hover:opacity-80"
+                    onClick={() => removeTag(tag)}
+                    aria-label={`移除标签：${tag}`}
+                    disabled={loading}
+                  >
+                    <X className="size-2.5" />
+                  </button>
+                ) : null}
+              </Badge>
+            ))}
+            {tagInputVisible && !readOnly ? (
+              <Input
+                ref={tagInputRef}
+                value={tagDraft}
+                placeholder="标签名..."
+                disabled={loading}
+                className="h-5 w-28 text-xs rounded-full px-2.5 py-0 border-dashed"
+                onChange={(e) => setTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitTag() }
+                  else if (e.key === "Escape") { setTagDraft(""); setTagInputVisible(false) }
+                }}
+                onBlur={() => { if (tagDraft.trim()) addTag(); setTagInputVisible(false) }}
+              />
+            ) : (
+              !readOnly && tags.length < 20 && (
+                <button
+                  type="button"
+                  className="inline-flex h-5 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={() => setTagInputVisible(true)}
+                  disabled={loading}
+                >
+                  <Plus className="size-2.5" />
+                  添加标签
+                </button>
+              )
+            )}
+          </div>
+
+          {navToc.length > 0 ? (
+            <EditorTocNav
+              navToc={navToc}
+              activeHeadingId={activeHeadingId}
+              className="ftoc--inline xl:hidden"
+              onTocClick={handleTocClick}
+            />
+          ) : null}
+
+          <ArticleSummaryPreview
+            summary={aiSummary}
+            generatedAt={aiSummaryGeneratedAt}
+            stale={aiSummaryStale || articleContentDirty}
+          />
+
+          <div ref={editorWrapperRef}>
+            <PlateMarkdownEditor
+              ref={markdownEditorRef}
+              key={`${loaded?.articleId ?? `pending-${articleId ?? "unknown"}`}:${currentUser?.id ?? 'anon'}`}
+              currentUser={currentUser ?? undefined}
+              initialMarkdown={contentMd}
+              initialContentJson={contentJson}
+              initialContentMetaJson={contentMetaJson}
+              disabled={loading || readOnly}
+              placeholder="请输入文章内容..."
+              onContentStateChange={handleContentStateChange}
+            />
+          </div>
+        </div>
+
+        {navToc.length > 0 ? (
+          <aside className="hidden min-w-0 xl:block">
+            <EditorTocNav
+              navToc={navToc}
+              activeHeadingId={activeHeadingId}
+              className="ftoc--in-flow"
+              onTocClick={handleTocClick}
+            />
+          </aside>
+        ) : null}
       </div>
 
       <ArticleShareDialog
@@ -1393,18 +1426,6 @@ export function KnowledgeBaseArticleEditorPage() {
         onOpenChange={setBurnDialogOpen}
         articleId={articleId}
       />
-
-      {/* TOC — portal so position:fixed is relative to viewport.
-          Only renders after both offsets are measured so the initial position is always correct. */}
-      {navToc.length > 0 && tocRight !== null && tocTop !== null && (
-        <EditorTocOverlay
-          navToc={navToc}
-          activeHeadingId={activeHeadingId}
-          rightOffset={tocRight}
-          topOffset={tocTop}
-          onTocClick={handleTocClick}
-        />
-      )}
 
       {/* Back to top — portal so position:fixed is relative to viewport, not SidebarInset */}
       <BackToTopButton />
@@ -1449,7 +1470,7 @@ function ArticleSummaryPreview({
 
 function ArticleEditorLoadingCard() {
   return (
-    <div className="w-full px-6 py-6 lg:px-10 animate-in fade-in-0 duration-300">
+    <div className="w-full px-4 py-4 sm:px-6 sm:py-5 lg:px-8 animate-in fade-in-0 duration-300">
       {/* Action bar skeleton */}
       <div className="flex items-center justify-between gap-4 mb-8">
         <div className="h-3.5 w-32 rounded-lg bg-muted/60 animate-pulse" />
@@ -1459,44 +1480,42 @@ function ArticleEditorLoadingCard() {
           <div className="h-8 w-20 rounded-md bg-muted/60 animate-pulse" />
         </div>
       </div>
-      {/* Title skeleton */}
-      <div className="h-9 w-2/5 rounded-lg bg-muted/60 animate-pulse mb-3" />
-      {/* Tags skeleton */}
-      <div className="flex items-center gap-2 mb-8">
-        <div className="h-5 w-16 rounded-full bg-muted/60 animate-pulse" />
-        <div className="h-5 w-20 rounded-full bg-muted/60 animate-pulse" />
-      </div>
-      {/* Editor area skeleton */}
-      <div className="rounded-lg border bg-muted/10 px-8 py-8 space-y-5">
-        <div className="h-3.5 w-full rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-3.5 w-11/12 rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-3.5 w-4/5 rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-px w-full bg-muted/30" />
-        <div className="h-3.5 w-full rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-3.5 w-3/4 rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-3.5 w-5/6 rounded-lg bg-muted/60 animate-pulse" />
-        <div className="h-3.5 w-2/3 rounded-lg bg-muted/60 animate-pulse" />
+      <div className="mx-auto w-full max-w-4xl">
+        {/* Title skeleton */}
+        <div className="mb-3 h-9 w-2/5 rounded-lg bg-muted/60 animate-pulse" />
+        {/* Tags skeleton */}
+        <div className="mb-8 flex items-center gap-2">
+          <div className="h-5 w-16 rounded-full bg-muted/60 animate-pulse" />
+          <div className="h-5 w-20 rounded-full bg-muted/60 animate-pulse" />
+        </div>
+        {/* Editor area skeleton */}
+        <div className="space-y-5 py-2">
+          <div className="h-3.5 w-full rounded-lg bg-muted/60 animate-pulse" />
+          <div className="h-3.5 w-11/12 rounded-lg bg-muted/60 animate-pulse" />
+          <div className="h-3.5 w-4/5 rounded-lg bg-muted/60 animate-pulse" />
+          <div className="h-px w-full bg-muted/30" />
+          <div className="h-3.5 w-full rounded-lg bg-muted/60 animate-pulse" />
+          <div className="h-3.5 w-3/4 rounded-lg bg-muted/60 animate-pulse" />
+          <div className="h-3.5 w-5/6 rounded-lg bg-muted/60 animate-pulse" />
+          <div className="h-3.5 w-2/3 rounded-lg bg-muted/60 animate-pulse" />
+        </div>
       </div>
     </div>
   )
 }
 
-/* ─── Editor TOC overlay (portal + fixed) ──────────────── */
+/* ─── Editor TOC ───────────────────────────────────────── */
 
-const LINE_W: Record<number, number> = { 2: 14, 3: 10, 4: 7 }
-const LINE_W_ACTIVE: Record<number, number> = { 2: 22, 3: 18, 4: 13 }
-
-function EditorTocOverlay({
+/** 渲染编辑页目录；宽屏置于独立侧栏，窄屏置于正文上方。 */
+function EditorTocNav({
   navToc,
   activeHeadingId,
-  rightOffset,
-  topOffset,
+  className,
   onTocClick,
 }: {
   navToc: TocItem[]
   activeHeadingId: string
-  rightOffset: number
-  topOffset: number
+  className: string
   onTocClick: (id: string) => void
 }) {
   const containerRef = React.useRef<HTMLElement | null>(null)
@@ -1526,33 +1545,29 @@ function EditorTocOverlay({
     setTimeout(() => { clickLockRef.current = false }, 900)
   }, [onTocClick])
 
-  // Portal renders in <body>, so position:fixed is correctly relative to the real viewport.
-  // rightOffset anchors the TOC to the editor card's right inner edge.
-  return createPortal(
+  return (
     <nav
-      className="ftoc"
+      className={cn("ftoc ftoc--always-visible", className)}
       ref={containerRef}
       aria-label="目录"
-      style={{ right: rightOffset, top: topOffset }}
     >
       {navToc.map((item) => {
         const active = activeHeadingId === item.id
-        const w = active ? (LINE_W_ACTIVE[item.level] ?? 18) : (LINE_W[item.level] ?? 10)
         return (
-          <div
+          <button
+            type="button"
             key={item.id}
             data-toc-id={item.id}
             data-level={item.level}
             className={cn("ftoc-item", active && "is-active")}
             onClick={() => handleClick(item.id)}
+            title={item.text}
           >
             <span className="ftoc-text">{item.text}</span>
-            <span className="ftoc-line" style={{ width: w }} />
-          </div>
+          </button>
         )
       })}
-    </nav>,
-    document.body
+    </nav>
   )
 }
 

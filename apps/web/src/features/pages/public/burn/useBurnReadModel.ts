@@ -9,7 +9,6 @@ import {
 import type { PublicArticlePageModel } from "@/features/pages/public/PublicArticlePageView"
 import {
   buildFallbackMindmapData,
-  extractFirstImageUrl,
   scrollToHeading,
 } from "@/features/pages/public/public-article-utils"
 import { usePublicArticleActiveHeading } from "@/features/pages/public/usePublicArticleActiveHeading"
@@ -177,7 +176,6 @@ export function useBurnReadModel(code: string | undefined): BurnReadModel {
 
   const pageModel: PublicArticlePageModel = {
     shareCode: code,
-    shareUrl: "",
     hasArticleData: Boolean(data),
     loading: phase === "consuming",
     error: null,
@@ -192,7 +190,6 @@ export function useBurnReadModel(code: string | undefined): BurnReadModel {
     createdAt: data?.createdAt ?? null,
     updatedAt: data?.updatedAt ?? null,
     aiSummary: data?.aiSummary?.trim() || null,
-    coverImageUrl: extractFirstImageUrl(data?.contentMd ?? "") ?? null,
     repostSource,
     tab,
     onTabChange: setTab,

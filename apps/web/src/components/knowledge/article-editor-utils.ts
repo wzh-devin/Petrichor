@@ -1,4 +1,5 @@
 import type { ArticleDetailResponse } from "@/lib/api"
+import type { ArticleMetadata } from "@/lib/article-metadata"
 
 export const MARKDOWN_IMPORT_MAX_FILE_BYTES = 2 * 1024 * 1024
 export const DOCX_IMPORT_MAX_FILE_BYTES = 25 * 1024 * 1024
@@ -9,6 +10,7 @@ export type ArticleEditorSnapshot = {
   contentMd: string
   contentJson: string
   contentMetaJson: string
+  metadata: ArticleMetadata
   tags: string[]
 }
 
@@ -30,6 +32,7 @@ export function buildSnapshotFromArticleDetail(article: ArticleDetailResponse): 
     contentMd: article.contentMd || "",
     contentJson: article.contentJson || "",
     contentMetaJson: article.contentMetaJson || "",
+    metadata: article.metadata || {},
     tags: normalizeArticleTags(article.tags || []),
   }
 }
@@ -40,6 +43,7 @@ export function buildArticleSnapshotKey(snapshot: ArticleEditorSnapshot): string
     contentMd: snapshot.contentMd,
     contentJson: snapshot.contentJson,
     contentMetaJson: snapshot.contentMetaJson,
+    metadata: snapshot.metadata,
     tags: normalizeArticleTags(snapshot.tags),
   })
 }

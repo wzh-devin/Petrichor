@@ -20,10 +20,7 @@ type PublicArticlePanelProps = {
 const TOC_MIN_LEVEL = 2
 const TOC_MAX_LEVEL = 4
 
-/** 按标题层级设置默认与激活态横线宽度 */
-const LINE_W: Record<number, number> = { 2: 14, 3: 10, 4: 7 }
-const LINE_W_ACTIVE: Record<number, number> = { 2: 22, 3: 18, 4: 13 }
-
+/** 渲染公开文章的常显桌面目录，并保持激活项跟随正文滚动。 */
 function PublicArticleFloatingToc({
   navToc,
   activeHeadingId,
@@ -64,21 +61,21 @@ function PublicArticleFloatingToc({
   }, [onTocClick])
 
   return (
-    <nav className="ftoc" ref={containerRef} aria-label="目录">
+    <nav className="ftoc ftoc--always-visible" ref={containerRef} aria-label="目录">
       {navToc.map((item) => {
         const active = activeHeadingId === item.id
-        const w = active ? (LINE_W_ACTIVE[item.level] ?? 18) : (LINE_W[item.level] ?? 10)
         return (
-          <div
+          <button
+            type="button"
             key={item.id}
             data-toc-id={item.id}
             data-level={item.level}
             className={cn("ftoc-item", active && "is-active")}
             onClick={() => handleClick(item.id)}
+            title={item.text}
           >
             <span className="ftoc-text">{item.text}</span>
-            <span className="ftoc-line" style={{ width: w }} />
-          </div>
+          </button>
         )
       })}
     </nav>
