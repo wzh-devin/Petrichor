@@ -1,3 +1,4 @@
+import path from "node:path"
 import { afterEach, expect, it, vi } from "vitest"
 import { runStartupMigration } from "./startup-migration"
 
@@ -19,6 +20,6 @@ it("仅在启用时执行启动迁移", async () => {
     process.env.DATABASE_URL = "postgres://example"
     await runStartupMigration()
     expect(runPostgresMigrations).toHaveBeenCalledWith(
-        expect.stringMatching(/docs\/migrations$/),
+        path.resolve(process.cwd(), "../../docs/migrations"),
     )
 })

@@ -10,5 +10,5 @@ export async function runStartupMigration() {
         return
     }
 
-    await runPostgresMigrations(path.resolve(process.cwd(), "docs/migrations"))
+    await runPostgresMigrations(path.resolve(process.cwd(), "../../docs/migrations"))
 }
