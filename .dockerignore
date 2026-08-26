@@ -22,12 +22,16 @@ coverage
 
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 !apps/**/.env.example
 
 *.log
 .DS_Store
 
-docs
+docs/**
+!docs/migrations/
+!docs/migrations/**
 *.md
 !README.md

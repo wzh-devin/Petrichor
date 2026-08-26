@@ -30,11 +30,11 @@ ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_REGISTER_ENABLED=false
 ENV NEXT_PUBLIC_REGISTER_ENABLED=$NEXT_PUBLIC_REGISTER_ENABLED
-# DATABASE_URL / SESSION_SECRET are only read lazily at request time
-# (see apps/web/src/config/server.ts), so the build does not need them.
-# If a page ever starts reading env at build/SSG time, pass dummy values
-# here via ARG/ENV so `next build` doesn't fail on a fresh Vercel builder.
-RUN pnpm --filter @petrichor/web build
+# Next.js 收集路由数据时会校验服务端配置；这里只使用不会连接的构建占位值，
+# 运行时由 Compose 的 env_file 覆盖为真实生产配置。
+RUN DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/petrichor-build \
+    SESSION_SECRET=petrichor-build-only-session-secret \
+    pnpm --filter @petrichor/web build
 
 # ---- runner: minimal runtime image ----------------------------------------
 FROM node:22-bookworm-slim AS runner
@@ -49,6 +49,7 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/docs/migrations ./docs/migrations
 RUN mkdir -p /app/apps/web/.next/cache && chown -R node:node /app/apps/web/.next/cache
 
 USER node

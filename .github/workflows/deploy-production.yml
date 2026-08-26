@@ -1,0 +1,105 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "镜像版本，例如 v1-2-3"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      VERSION: ${{ inputs.version }}
+      ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
+      ACR_IMAGE: ${{ vars.ACR_IMAGE }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+
+    steps:
+      - name: 校验发布参数
+        env:
+          PRODUCTION_APP_URL: ${{ vars.PRODUCTION_APP_URL }}
+          PRODUCTION_REGISTER_ENABLED: ${{ vars.PRODUCTION_REGISTER_ENABLED }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$ ]]
+          [[ "$ACR_REGISTRY" =~ ^[a-z0-9.-]+(:[0-9]+)?$ ]]
+          [[ "$ACR_IMAGE" =~ ^[a-z0-9][a-z0-9._:/-]*$ ]]
+          [[ "$ACR_IMAGE" == "$ACR_REGISTRY/"* ]]
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]] && (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 ))
+          [[ "$DEPLOY_USER" =~ ^[a-zA-Z0-9._-]+$ ]]
+          [[ "$DEPLOY_PATH" =~ ^/[a-zA-Z0-9._/-]+$ ]]
+          [[ "$PRODUCTION_APP_URL" =~ ^https?://[^[:space:]]+$ ]]
+          [[ "$PRODUCTION_REGISTER_ENABLED" == "true" || "$PRODUCTION_REGISTER_ENABLED" == "false" ]]
+
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录阿里云容器镜像服务
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: 拒绝覆盖已有版本
+        run: |
+          if docker buildx imagetools inspect "$ACR_IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "镜像版本 $VERSION 已存在，请使用新版本号。" >&2
+            exit 1
+          fi
+
+      - name: 构建并推送镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ vars.ACR_IMAGE }}:${{ inputs.version }}
+            ${{ vars.ACR_IMAGE }}:latest
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.PRODUCTION_APP_URL }}
+            NEXT_PUBLIC_REGISTER_ENABLED=${{ vars.PRODUCTION_REGISTER_ENABLED }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 配置部署密钥
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_rsa ~/.ssh/known_hosts
+
+      - name: 部署指定版本
+        run: |
+          set -euo pipefail
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          remote_override="/tmp/petrichor-compose-$GITHUB_RUN_ID.yaml"
+          printf 'services:\n  web:\n    image: "%s:%s"\n    environment:\n      PETRICHOR_AUTO_MIGRATE: "true"\n' \
+            "$ACR_IMAGE" "$VERSION" > docker-compose.deploy.yaml
+
+          scp -i ~/.ssh/id_rsa -P "$DEPLOY_PORT" docker-compose.deploy.yaml "$target:$remote_override"
+          ssh -i ~/.ssh/id_rsa -p "$DEPLOY_PORT" "$target" \
+            "set -e; sudo install -m 600 '$remote_override' '$DEPLOY_PATH/docker-compose.deploy.yaml'; rm -f '$remote_override'; cd '$DEPLOY_PATH'; sudo docker compose -f docker-compose.yaml -f docker-compose.deploy.yaml pull web; sudo docker compose -f docker-compose.yaml -f docker-compose.deploy.yaml up -d --no-build --wait --wait-timeout 60 web; test \"\$(sudo docker inspect --format '{{.Config.Image}}' petrichor)\" = '$ACR_IMAGE:$VERSION'; sudo docker compose -f docker-compose.yaml -f docker-compose.deploy.yaml ps web"
