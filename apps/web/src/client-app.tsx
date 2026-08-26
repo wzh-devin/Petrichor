@@ -44,21 +44,16 @@ import { SiteAppearanceConfigPage } from '@/features/pages/admin/SiteAppearanceC
 import { ProjectsConfigPage } from '@/features/pages/admin/ProjectsConfigPage'
 import { NotificationPage } from '@/features/pages/notification/NotificationPage'
 import { dashboardRoutes, isFixedViewportRoute } from '@/lib/dashboard-routes'
-import { enterDemoMode } from '@/lib/demo/demo-mode'
-import { DemoModeBanner } from '@/components/demo-mode-banner'
+import { resolveLoginRedirect } from '@/lib/login-redirect'
 import { isPublicSitePath } from '@/lib/public-theme-routes'
 import { SiteGraphConfigPage } from '@/features/pages/admin/SiteGraphConfigPage'
 
 function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const target = resolveLoginRedirect(searchParams.get('redirect'), dashboardRoutes.root)
 
   const handleLoginSuccess = () => {
-    const redirect = searchParams.get('redirect')
-    const target =
-      redirect && redirect.startsWith('/') && !redirect.startsWith('//')
-        ? redirect
-        : dashboardRoutes.root
     navigate(target)
   }
 
@@ -68,13 +63,15 @@ function LoginPage() {
         <ThemeToggle />
       </div>
       <div className="w-full max-w-sm">
-        <LoginForm className="w-full" onLoginSuccess={handleLoginSuccess} />
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          没有账号？
-          <a href="/demo" className="ml-1 underline underline-offset-4 hover:text-foreground">
-            免登录进入演示模式
-          </a>
-        </p>
+        <LoginForm
+          className="w-full"
+          oauthError={searchParams.has('error')}
+          oauthOptions={{
+            callbackURL: target,
+            errorCallbackURL: `/login?redirect=${encodeURIComponent(target)}`,
+          }}
+          onLoginSuccess={handleLoginSuccess}
+        />
       </div>
     </div>
   )
@@ -153,7 +150,6 @@ function DashboardLayout() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <AppBreadcrumb />
-        <DemoModeBanner />
         <TwoFactorEnforcementBanner />
         <div className="flex min-h-0 flex-1 flex-col">
           <Outlet />
@@ -161,13 +157,6 @@ function DashboardLayout() {
       </SidebarInset>
     </SidebarProvider>
   )
-}
-
-/* 演示模式入口：落 sessionStorage 标记后直接进真实仪表盘。
-   页面组件不感知演示态，数据层由 demo adapter 全量接管。 */
-function DemoEntry() {
-  enterDemoMode()
-  return <Navigate to={dashboardRoutes.knowledge} replace />
 }
 
 function AppThemeScope() {
@@ -190,7 +179,6 @@ function AppThemeScope() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/petrichor" element={<Navigate to="/" replace />} />
-            <Route path="/demo" element={<DemoEntry />} />
             <Route path="/p/:shareCode" element={<PublicArticlePage />} />
             <Route path="/b/:code" element={<BurnReadPage />} />
             <Route path="/login" element={<LoginPage />} />

@@ -210,14 +210,6 @@ export function resolvePublicRouteMetadata(
     if (firstSegment === "projects" && pathSegments.length === 1) {
         return buildStaticPublicPageMetadata("/projects", siteName)
     }
-    if (firstSegment === "demo" && pathSegments.length === 1) {
-        return buildPublicMetadata({
-            title: "演示模式",
-            description: `免登录体验 ${siteName} 工作台：知识库、编辑器与 AI 助手，数据仅存于浏览器内存。`,
-            pathname,
-            index: false,
-        }, siteName)
-    }
     if (firstSegment === "p" && secondSegment) {
         const article = articles.find((item) => item.shareCode === secondSegment) ?? null
         return buildArticleMetadata(article, pathname, siteName)

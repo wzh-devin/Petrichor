@@ -8,9 +8,11 @@ const FONT_FORMAT: Record<string, string> = {
     woff2: "woff2",
 }
 
+const LXGW_WENKAI_FACE = '@font-face{font-family:"Petrichor LXGW WenKai";src:url("/fonts/LXGWWenKai-Regular.gb2312.63282bb9.woff2") format("woff2");font-display:swap;font-style:normal;font-weight:400;}'
+
 export function buildSiteFontPresentation(fontConfig: SiteFontConfig, baseUrl: string) {
     const aliases = new Map<string, string>()
-    const fontFaces = fontConfig.assets.map((asset) => {
+    const uploadedFontFaces = fontConfig.assets.map((asset) => {
         const url = resolveAppearanceAssetUrl(asset.objectKey, baseUrl)
         if (!url) return ""
         const alias = `PetrichorFont-${asset.id}`
@@ -21,6 +23,7 @@ export function buildSiteFontPresentation(fontConfig: SiteFontConfig, baseUrl: s
     const resolveInterface = (selection: SiteFontConfig["interfaceFont"]) => {
         if (selection === "system-serif") return "var(--font-system-serif)"
         if (selection === "maple-mono") return "var(--font-maple)"
+        if (selection === "lxgw-wenkai") return '"Petrichor LXGW WenKai", var(--font-system-serif)'
         if (selection === "system-sans") return "var(--font-system-sans)"
         return uploadedStack(selection, aliases, "var(--font-system-sans)")
     }
@@ -35,7 +38,7 @@ export function buildSiteFontPresentation(fontConfig: SiteFontConfig, baseUrl: s
           : uploadedStack(fontConfig.monospaceFont, aliases, "var(--font-system-mono)")
 
     return {
-        css: fontFaces,
+        css: `${LXGW_WENKAI_FACE}${uploadedFontFaces}`,
         variables: {
             "--font-interface": interfaceFont,
             "--font-content": contentFont,

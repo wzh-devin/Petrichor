@@ -36,4 +36,23 @@ describe("字体配置", () => {
       monospaceFont: "system-mono",
     }, current)).toThrow("界面字体无效")
   })
+
+  it("允许霞鹜文楷用于界面和正文，但不允许作为等宽字体", () => {
+    const current = parseSiteFontConfig(null)
+
+    expect(validateFontSelections({
+      interfaceFont: "lxgw-wenkai",
+      contentFont: "lxgw-wenkai",
+      monospaceFont: "system-mono",
+    }, current)).toEqual({
+      interfaceFont: "lxgw-wenkai",
+      contentFont: "lxgw-wenkai",
+      monospaceFont: "system-mono",
+    })
+    expect(() => validateFontSelections({
+      interfaceFont: "system-sans",
+      contentFont: "follow-interface",
+      monospaceFont: "lxgw-wenkai",
+    }, current)).toThrow("等宽字体无效")
+  })
 })

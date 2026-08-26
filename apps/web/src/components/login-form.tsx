@@ -2,12 +2,19 @@ import { useState } from "react"
 import { Link } from "react-router-dom"
 
 import { SiteLogo } from "@/components/site-logo"
+import {
+  oauthLoginAdapters,
+  type OAuthLoginAdapter,
+  type OAuthLoginOptions,
+  type OAuthLoginProviderId,
+} from "@/components/auth/oauth-login-adapters"
 import { Button } from "@/components/ui/button"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { authApi, twoFactorApi } from "@/lib/api"
@@ -15,6 +22,8 @@ import { cn } from "@/lib/utils"
 
 interface LoginFormProps extends React.ComponentProps<"div"> {
   onLoginSuccess?: (token?: string) => void
+  oauthError?: boolean
+  oauthOptions: OAuthLoginOptions
 }
 
 const registerEnabled = process.env.NEXT_PUBLIC_REGISTER_ENABLED === "true"
@@ -35,9 +44,12 @@ function normalizeAxiosError(e: unknown, fallback: string): string {
   return fallback
 }
 
+/** 提供邮箱密码、二步验证及 OAuth 供应商登录入口。 */
 export function LoginForm({
   className,
   onLoginSuccess,
+  oauthError = false,
+  oauthOptions,
   ...props
 }: LoginFormProps) {
   const [mode, setMode] = useState<"login" | "register">("login")
@@ -48,7 +60,10 @@ export function LoginForm({
   const [name, setName] = useState("")
   const [twoFactorCode, setTwoFactorCode] = useState("")
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [oauthProvider, setOAuthProvider] = useState<OAuthLoginProviderId | null>(null)
+  const [error, setError] = useState(
+    oauthError ? "第三方登录失败，请重试或改用邮箱登录" : "",
+  )
 
   const resetTwoFactor = () => {
     setTwoFactorCode("")
@@ -104,6 +119,24 @@ export function LoginForm({
       setError(normalizeAxiosError(err, "验证码错误，请重试"))
     } finally {
       setLoading(false)
+    }
+  }
+
+  /** 通过供应商适配器发起 OAuth 登录，统一处理重复提交和客户端失败。 */
+  const handleOAuthLogin = async (adapter: OAuthLoginAdapter) => {
+    setLoading(true)
+    setOAuthProvider(adapter.id)
+    setError("")
+    try {
+      const providerError = await adapter.signIn(oauthOptions)
+      if (providerError) {
+        setError("第三方登录失败，请稍后重试")
+      }
+    } catch {
+      setError("第三方登录失败，请稍后重试")
+    } finally {
+      setLoading(false)
+      setOAuthProvider(null)
     }
   }
 
@@ -255,6 +288,24 @@ export function LoginForm({
                 ? (currentMode === "login" ? "登录中..." : "注册中...")
                 : (currentMode === "login" ? "登录" : "注册")}
             </Button>
+          </Field>
+          <FieldSeparator>或使用第三方账号</FieldSeparator>
+          <Field className="grid grid-cols-2 gap-3">
+            {oauthLoginAdapters.map((adapter) => {
+              const { Icon } = adapter
+              return (
+                <Button
+                  key={adapter.id}
+                  type="button"
+                  variant="outline"
+                  disabled={loading}
+                  onClick={() => void handleOAuthLogin(adapter)}
+                >
+                  <Icon aria-hidden="true" />
+                  {oauthProvider === adapter.id ? "正在跳转..." : adapter.label}
+                </Button>
+              )
+            })}
           </Field>
         </FieldGroup>
       </form>

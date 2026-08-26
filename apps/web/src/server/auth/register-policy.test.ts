@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { resolveRegisterDefaultSystemRole } from "./register-policy"
+import { isRegisterEnabled, resolveRegisterDefaultSystemRole } from "./register-policy"
 
 describe("register policy", () => {
+    it("默认关闭公开注册", () => {
+        expect(isRegisterEnabled({})).toBe(false)
+        expect(isRegisterEnabled({ NEXT_PUBLIC_REGISTER_ENABLED: "false" })).toBe(false)
+    })
+
+    it("仅显式配置 true 时开放注册", () => {
+        expect(isRegisterEnabled({ NEXT_PUBLIC_REGISTER_ENABLED: "true" })).toBe(true)
+    })
+
     it("默认注册用户角色为普通用户", () => {
         expect(resolveRegisterDefaultSystemRole({})).toBe("USER")
     })

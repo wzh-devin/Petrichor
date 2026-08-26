@@ -25,7 +25,7 @@ export function isPublicSitePath(pathname: string) {
  * 那段脚本必须在 bundle 加载前跑，没法 import 本模块，所以改用「排除后台」的反向规则。
  * 这里导出同一份逻辑，由单测钉住两者对所有应用路由结论一致。
  */
-const NON_PUBLIC_PREFIXES = ["/dashboard", "/login", "/auth", "/demo"]
+const NON_PUBLIC_PREFIXES = ["/dashboard", "/login", "/auth"]
 
 export function isPublicSitePathByExclusion(pathname: string) {
   const normalizedPathname = normalizePathname(pathname)

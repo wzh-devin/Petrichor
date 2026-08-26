@@ -48,7 +48,7 @@ export default async function RootLayout({
                     两者一致性由 public-theme-routes.test.ts 钉住。 */}
                 <script
                     dangerouslySetInnerHTML={{
-                        __html: `(function(){try{var p=location.pathname.replace(/(.)\\/$/,"$1")||"/";var deny=["/dashboard","/login","/auth","/demo"];var isPublic=!deny.some(function(d){return p===d||p.indexOf(d+"/")===0});var t=isPublic?"dark":(localStorage.getItem("ui-theme")||"system");if(t==="system"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.classList.add(t)}catch(e){}})()`,
+                        __html: `(function(){try{var p=location.pathname.replace(/(.)\\/$/,"$1")||"/";var deny=["/dashboard","/login","/auth"];var isPublic=!deny.some(function(d){return p===d||p.indexOf(d+"/")===0});var t=isPublic?"dark":(localStorage.getItem("ui-theme")||"system");if(t==="system"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.classList.add(t)}catch(e){}})()`,
                     }}
                 />
             </head>

@@ -244,6 +244,7 @@ export function SiteAppearanceConfigPage() {
         { label: "系统无衬线字体", value: "system-sans" },
         { label: "系统衬线字体", value: "system-serif" },
         { label: "Maple Mono", value: "maple-mono" },
+        { label: "霞鹜文楷（常用字版）", value: "lxgw-wenkai" },
         ...uploadedOptions,
     ]
     const contentOptions = [

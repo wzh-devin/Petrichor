@@ -6,6 +6,7 @@ export type InterfaceFontSelection =
   | "system-sans"
   | "system-serif"
   | "maple-mono"
+  | "lxgw-wenkai"
   | `uploaded:${string}`
 export type ContentFontSelection = "follow-interface" | InterfaceFontSelection
 export type MonospaceFontSelection = "system-mono" | "maple-mono" | `uploaded:${string}`
@@ -33,7 +34,7 @@ export const DEFAULT_SITE_FONT_CONFIG: SiteFontConfig = {
   monospaceFont: "maple-mono",
 }
 
-const BUILT_IN_INTERFACE_FONTS = new Set(["system-sans", "system-serif", "maple-mono"])
+const BUILT_IN_INTERFACE_FONTS = new Set(["system-sans", "system-serif", "maple-mono", "lxgw-wenkai"])
 const BUILT_IN_MONOSPACE_FONTS = new Set(["system-mono", "maple-mono"])
 
 export function parseSiteFontConfig(raw: string | null | undefined): SiteFontConfig {

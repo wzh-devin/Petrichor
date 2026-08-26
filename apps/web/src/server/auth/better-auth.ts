@@ -13,6 +13,7 @@ import {
     betterAuthVerifications,
 } from "@/server/db/schema"
 import { ensurePetrichorUserForBetterAuthUser } from "./better-auth-bridge"
+import { buildOAuthSocialProviders } from "./oauth-provider-adapters"
 import { BETTER_AUTH_COOKIE_PREFIX } from "./session"
 
 const serverConfig = getServerConfig()
@@ -67,6 +68,12 @@ export const auth = betterAuth({
             hash: (password) => Promise.resolve(bcrypt.hashSync(password, 10)),
             verify: ({ hash, password }) =>
                 Promise.resolve(bcrypt.compareSync(password, hash)),
+        },
+    },
+    socialProviders: buildOAuthSocialProviders(),
+    account: {
+        accountLinking: {
+            allowUnlinkingAll: true,
         },
     },
     session: {

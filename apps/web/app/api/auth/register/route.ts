@@ -4,8 +4,8 @@ import { auth } from "@/server/auth/better-auth"
 import { createLocalUserWithBetterAuth } from "@/server/auth/better-auth-bridge"
 import { appendBetterAuthCookies, toAuthHttpError } from "@/server/auth/better-auth-response"
 import { toUserResponse } from "@/server/mappers"
-import { readJson, toErrorResponse } from "@/server/http/response"
-import { resolveRegisterDefaultSystemRole } from "@/server/auth/register-policy"
+import { forbidden, readJson, toErrorResponse } from "@/server/http/response"
+import { isRegisterEnabled, resolveRegisterDefaultSystemRole } from "@/server/auth/register-policy"
 
 const schema = z.object({
     email: z.string().email(),
@@ -15,6 +15,9 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
+        if (!isRegisterEnabled()) {
+            throw forbidden("当前未开放注册")
+        }
         const input = schema.parse(await readJson(request))
         const systemRole = resolveRegisterDefaultSystemRole()
         const user = await createLocalUserWithBetterAuth({

@@ -8,6 +8,7 @@ import { authApi, type UserProfileResponse } from "@/lib/api"
 import { PasswordFields } from "@/components/account/PasswordFields"
 import { validatePasswordStrength } from "@/components/account/password-utils"
 import { LoginSessionsSection } from "@/components/account/login-sessions-section"
+import { OAuthAccountsSection } from "@/components/account/oauth-accounts-section"
 import { TwoFactorSection } from "@/components/account/two-factor-section"
 import { NoticeToast } from "@/components/petrichor-ui/notice-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -397,6 +398,8 @@ export function AccountPage() {
                   <ProfileField label="创建时间" value={formatDateTime(profile.createdAt)} />
                   <ProfileField label="更新时间" value={formatDateTime(profile.updatedAt)} />
                 </div>
+
+                <OAuthAccountsSection />
 
                 <TwoFactorSection profile={profile} onChanged={() => void fetchProfile()} />
 

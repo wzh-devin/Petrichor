@@ -30,7 +30,7 @@ describe("public theme routes", () => {
       "/", "/tags", "/tags/", "/graph", "/ask", "/about", "/projects", "/petrichor",
       "/p/shareCode123", "/b/burnCode123", "/library/2", "/library/2/3",
       "/dashboard", "/dashboard/knowledge", "/dashboard/admin/site-graph",
-      "/login", "/demo",
+      "/login",
     ]
     for (const route of appRoutes) {
       expect([route, isPublicSitePathByExclusion(route)])

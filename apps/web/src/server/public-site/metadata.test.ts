@@ -55,4 +55,9 @@ describe("站点名称元数据", () => {
         expect(resolvePublicRouteMetadata(["library", "invalid"], [], "我的站点").title)
             .toBe("页面未找到")
     })
+
+    it("已删除的演示路由使用未找到元数据", () => {
+        expect(resolvePublicRouteMetadata(["demo"], [], "我的站点").title)
+            .toBe("页面未找到")
+    })
 })

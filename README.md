@@ -14,8 +14,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 [![Vercel](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](#-vercel-一键部署傻瓜式教程)
 
-[**🌐 产品介绍**](https://wl.do/tags) ·
-[**📖 在线 Demo（前台）**](https://wl.do)
+[**🌐 产品介绍**](https://wl.do/tags)
 
 [**🚀 一键部署到 Vercel**](#-vercel-一键部署傻瓜式教程) ·
 [功能特性](#-功能特性) ·
@@ -185,7 +184,7 @@ openssl rand -hex 8
    | --- | --- |
    | `NEXT_PUBLIC_REGISTER_ENABLED` | `false` |
 
-5. 再点一次 **Redeploy**，登录页的「注册」入口就消失了，从此只有管理员能从后台手动加用户。
+5. 再点一次 **Redeploy**，登录页的「注册」入口和注册 API 会同时关闭，从此只有管理员能从后台手动加用户。
 
 #### 方法 B：直接在 Supabase SQL Editor 插入（需要本地 Node）
 
@@ -263,9 +262,50 @@ openssl rand -hex 8
 | 变量 | 用于什么功能 |
 | --- | --- |
 | `NEXT_PUBLIC_APP_URL` | **公开站点完整 URL**（如 `https://yourdomain.com`、`https://你的项目.vercel.app`）。用于：文章分享链接、RSS/Atom 链接生成、SEO `og:url`。部署完成后**务必回填**为真实域名 |
-| `NEXT_PUBLIC_REGISTER_ENABLED` | 是否在登录页显示「注册」入口，`"true"` / `"false"`，默认 `"false"`（关闭注册，仅管理员手动添加用户） |
+| `NEXT_PUBLIC_REGISTER_ENABLED` | 是否开放公开注册，`"true"` / `"false"`，默认 `"false"`；同时控制登录页入口与注册 API，修改后需重新部署 |
 | `PETRICHOR_REGISTER_DEFAULT_SYSTEM_ROLE` | 开放注册时新用户默认角色，只允许 `USER` 或 `SUPER_ADMIN`，默认 `USER`。**通常无需设置**：系统里还没有任何超级管理员时，第一个注册的账号会自动成为 `SUPER_ADMIN` |
 | `PETRICHOR_SESSION_EXPIRE_SECONDS` | 登录态有效期（秒），默认 `172800`（2 天） |
+
+### 🔑 GitHub / Google OAuth 登录
+
+OAuth 为可选功能。配置完整的一组 Client ID / Client Secret 后，登录页对应按钮即可使用：
+
+| 变量 | 用于什么功能 |
+| --- | --- |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth App 凭据 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 Client 凭据 |
+
+供应商后台需配置精确回调地址：
+
+```text
+https://你的域名/api/auth/callback/github
+https://你的域名/api/auth/callback/google
+```
+
+本地开发时对应为：
+
+```text
+http://localhost:3000/api/auth/callback/github
+http://localhost:3000/api/auth/callback/google
+```
+
+#### GitHub 配置
+
+1. 打开 GitHub 的 **Settings → Developer settings → OAuth Apps → New OAuth App**。
+2. `Homepage URL` 填写站点地址，例如 `https://你的域名`。
+3. `Authorization callback URL` 填写 `https://你的域名/api/auth/callback/github`；需要同时调试本地环境时，可增加本地回调地址。
+4. 注册应用后复制 `Client ID`，再生成 `Client Secret`，分别写入 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`。
+
+#### Google 配置
+
+1. 在 Google Cloud Console 创建或选择项目，并在 **Google Auth Platform** 中配置品牌、受众和联系信息；测试模式下把登录账号加入测试用户。
+2. 进入 **Clients → Create Client**，应用类型选择 **Web application**。
+3. `Authorized redirect URIs` 填写 `https://你的域名/api/auth/callback/google`；本地开发增加 `http://localhost:3000/api/auth/callback/google`。
+4. 创建后复制 Client ID 和 Client Secret，分别写入 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`。
+
+最后确认 `NEXT_PUBLIC_APP_URL` 与供应商后台使用的站点根地址完全一致，并重启本地服务或重新部署。Client Secret 只应配置在服务端环境变量中，不要提交到仓库或暴露给浏览器。
+
+`NEXT_PUBLIC_REGISTER_ENABLED=false` 时，OAuth 不能创建新用户，只允许已有或经过验证的同邮箱账号登录。增加 Better Auth 支持的其他供应商时，只需注册服务端 provider、增加一个客户端登录适配器并配置对应回调地址。
 
 ## 🛠️ Agent 集成（Skill 包 / REST 能力层）
 
@@ -440,7 +480,6 @@ pnpm test
 ### Links
 
 - 🌐 **Product site**: <https://petrichor.wl.do>
-- 📖 **Live demo (public site)**: <https://wl.do>
 
 ### Quick deploy
 
@@ -475,9 +514,11 @@ pnpm test
 
 | Variable | Purpose |
 | --- | --- |
-| `NEXT_PUBLIC_REGISTER_ENABLED` | Show the "Sign up" entry on the login page (`true` / `false`) |
+| `NEXT_PUBLIC_REGISTER_ENABLED` | Enable public registration in both the login UI and registration API (`true` / `false`, redeploy required) |
 | `PETRICHOR_REGISTER_DEFAULT_SYSTEM_ROLE` | Default role for self-registered users — `USER` or `SUPER_ADMIN` (default `USER`). Usually unnecessary: the first account registered while no super-admin exists is auto-promoted to `SUPER_ADMIN` |
 | `PETRICHOR_SESSION_EXPIRE_SECONDS` | Session lifetime in seconds (default `172800`) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional GitHub OAuth App credentials; callback: `/api/auth/callback/github` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional Google OAuth client credentials; callback: `/api/auth/callback/google` |
 
 See the full breakdown in the [Chinese section above](#-环境变量速查表).
 

@@ -26,6 +26,10 @@ FROM base AS builder
 COPY --from=deps /app /app
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_REGISTER_ENABLED=false
+ENV NEXT_PUBLIC_REGISTER_ENABLED=$NEXT_PUBLIC_REGISTER_ENABLED
 # DATABASE_URL / SESSION_SECRET are only read lazily at request time
 # (see apps/web/src/config/server.ts), so the build does not need them.
 # If a page ever starts reading env at build/SSG time, pass dummy values
@@ -45,6 +49,7 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
+RUN mkdir -p /app/apps/web/.next/cache && chown -R node:node /app/apps/web/.next/cache
 
 USER node
 EXPOSE 80
