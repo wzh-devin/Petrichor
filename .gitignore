@@ -43,6 +43,7 @@ dev/
 promo/
 
 # Generated local files
+/petrichor.tar
 petrichor-init.sql
 *-init.sql
 !docs/petrichor-init.sql
