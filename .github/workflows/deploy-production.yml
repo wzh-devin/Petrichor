@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "镜像版本，例如 v1-2-3"
+        description: "镜像版本，例如 v1.2.3"
         required: true
         type: string
 
@@ -36,7 +36,7 @@ jobs:
           PRODUCTION_REGISTER_ENABLED: ${{ vars.PRODUCTION_REGISTER_ENABLED }}
         run: |
           set -euo pipefail
-          [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)-(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$ ]]
+          [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           [[ "$ACR_REGISTRY" =~ ^[a-z0-9.-]+(:[0-9]+)?$ ]]
           [[ "$ACR_IMAGE" =~ ^[a-z0-9][a-z0-9._:/-]*$ ]]
           [[ "$ACR_IMAGE" == "$ACR_REGISTRY/"* ]]
