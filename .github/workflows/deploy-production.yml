@@ -72,6 +72,8 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ vars.ACR_IMAGE }}:${{ inputs.version }}
             ${{ vars.ACR_IMAGE }}:latest
