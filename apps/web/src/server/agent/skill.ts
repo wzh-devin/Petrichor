@@ -3,6 +3,34 @@ export type AgentSkillPackageFile = {
     content: string
 }
 
+export const AGENT_API_VERSION = "2026-08-26"
+
+export const AGENT_API_CAPABILITIES = [
+    "knowledge-base.list",
+    "knowledge-base.tree",
+    "folder.create",
+    "article.create",
+    "article.update",
+    "article.delete",
+    "article.list",
+    "article.move",
+    "article.share.create",
+    "article.share.revoke",
+    "article.share.info",
+    "article.summary.generate",
+    "article.mindmap.generate",
+    "document.search",
+    "document.tree",
+    "document.semantic-search",
+    "document.view",
+    "document.qa",
+    "site-graph.search",
+    "wiki.page.list",
+    "wiki.page.detail",
+    "wiki.lint",
+    "wiki.ingest",
+] as const
+
 export function normalizeAgentBaseUrl(baseUrl: string) {
     return baseUrl.trim().replace(/\/+$/, "") || "https://your-petrichor.example.com"
 }
@@ -29,6 +57,7 @@ export function buildAgentEndpointMap() {
         documentSemanticSearch: "/api/agent/document/semantic-search",
         documentView: "/api/agent/document/view",
         documentQa: "/api/agent/document/qa",
+        siteGraphSearch: "/api/agent/site-graph/search",
         wikiPageList: "/api/agent/wiki/page/list",
         wikiPageDetail: "/api/agent/wiki/page/detail",
         wikiLint: "/api/agent/wiki/lint",
@@ -52,7 +81,7 @@ export function buildAgentMcpInfo(baseUrl: string) {
 export function buildAgentManifest(baseUrl: string) {
     return {
         name: "Petrichor Agent API",
-        version: "2026-06-08",
+        version: AGENT_API_VERSION,
         baseUrl: normalizeAgentBaseUrl(baseUrl),
         mcp: buildAgentMcpInfo(baseUrl),
         auth: {
@@ -67,7 +96,7 @@ export function buildAgentManifest(baseUrl: string) {
         scopes: {
             "article:write": ["article.create", "article.update", "article.move", "folder.create"],
             "article:delete": ["article.delete"],
-            "doc:read": ["knowledge-base.list", "knowledge-base.tree", "article.list", "document.search", "document.tree", "document.semantic-search", "document.view"],
+            "doc:read": ["knowledge-base.list", "knowledge-base.tree", "article.list", "document.search", "document.tree", "document.semantic-search", "document.view", "site-graph.search"],
             "qa:read": ["document.qa"],
             "share:write": ["article.share.create", "article.share.revoke", "article.share.info"],
             "ai:write": ["article.summary.generate", "article.mindmap.generate"],
@@ -84,7 +113,7 @@ export function buildAgentSkillMarkdown(baseUrl: string) {
 
     return `---
 name: petrichor
-description: Use this skill when an AI agent needs to call the Petrichor external Agent API for knowledge bases, articles, document search, document viewing, document question answering, article sharing, or AI summary / mindmap generation. Triggers include create / update / delete article, browse knowledge base, search docs, ask the knowledge base, share article, summarize article.
+description: Use this skill when an AI agent needs to call the Petrichor external Agent API for knowledge bases, article metadata and cross-library moves, document or site-graph search, question answering, sharing, or AI generation.
 ---
 
 # Petrichor
@@ -151,6 +180,7 @@ export function buildAgentSkillPackageFiles(baseUrl: string): AgentSkillPackageF
         { path: "petrichor/skills/setup.md", content: buildSetupSubSkillMarkdown(normalizedBaseUrl) },
         { path: "petrichor/skills/articles.md", content: buildArticlesSubSkillMarkdown() },
         { path: "petrichor/skills/docs.md", content: buildDocsSubSkillMarkdown() },
+        { path: "petrichor/skills/graph.md", content: buildGraphSubSkillMarkdown() },
         { path: "petrichor/skills/qa.md", content: buildQaSubSkillMarkdown() },
         { path: "petrichor/skills/share.md", content: buildShareSubSkillMarkdown() },
         { path: "petrichor/skills/ai.md", content: buildAiSubSkillMarkdown() },
@@ -177,7 +207,7 @@ function buildSkillConfigJson(baseUrl: string) {
 function buildRootSkillMarkdown(baseUrl: string) {
     return `---
 name: petrichor
-description: Use this skill when an AI agent needs to call the Petrichor external Agent API. Covers knowledge base browsing, article CRUD, folder organization, full-text document search, tree-based reasoning retrieval, vector semantic search, document viewing, knowledge-base question answering, article share-link management, AI summary / mindmap / knowledge-graph generation, and knowledge Wiki browsing / ingest / lint. Triggers include create / update / delete article, organize folders, browse knowledge base, search docs, semantic search, ask the knowledge base, share article, set share password, summarize article, generate mindmap, generate knowledge graph, browse wiki pages, rebuild wiki, lint wiki.
+description: Use this skill when an AI agent needs to call the Petrichor external Agent API. Covers knowledge base browsing, article CRUD and metadata, cross-knowledge-base moves, document search and viewing, site graph retrieval, knowledge-base question answering, article sharing, AI generation, and knowledge Wiki maintenance.
 ---
 
 # Petrichor
@@ -209,6 +239,7 @@ chmod +x scripts/petrichor
 | 配置、自检、查 API Key 权限、发现接口 | \`Read skills/setup.md\` |
 | 新建 / 更新 / 删除文章、新建文件夹、移动文章 | \`Read skills/articles.md\` |
 | 浏览知识库、看目录树、列文章、搜索文档（关键词 / 推理 / 语义）、查看正文 / Wiki | \`Read skills/docs.md\` |
+| 检索全站星图中的实体、关系、路径与公开文章 | \`Read skills/graph.md\` |
 | 文档问答、跨库问答、引用知识库内容回答 | \`Read skills/qa.md\` |
 | 公开文章、设置分享密码 / 到期、撤销分享、查询分享状态 | \`Read skills/share.md\` |
 | AI 摘要、思维导图、知识图谱生成 | \`Read skills/ai.md\` |
@@ -295,8 +326,9 @@ function buildArticlesSubSkillMarkdown() {
 2. 不确定父目录时，\`scripts/petrichor kb tree --kb-id <ID>\`。
 3. 新建文件夹用 \`scripts/petrichor folder create\`。
 4. 新建文章用 \`scripts/petrichor article create\`，长正文写入临时文件后用 \`--content-file\`。
-5. 更新文章用 \`scripts/petrichor article update\`，必须传完整标题和 Markdown 正文。
-6. 删除文章前必须向用户复述文章 ID 和标题，并获得明确确认。
+5. 创建或更新文章元数据时传 \`--metadata-json '{"source":"agent"}'\`；只支持文本或文本数组。
+6. 更新文章用 \`scripts/petrichor article update\`，必须传完整标题和 Markdown 正文。
+7. 删除文章前必须向用户复述文章 ID 和标题，并获得明确确认。
 
 ## 命令
 
@@ -307,7 +339,8 @@ scripts/petrichor article create \\
   --kb-id 1 \\
   --title "文章标题" \\
   --content $'# 文章标题\\n\\n正文' \\
-  --tag agent --tag draft
+  --tag agent --tag draft \\
+  --metadata-json '{"source":"agent","status":["draft"]}'
 \`\`\`
 
 \`\`\`bash
@@ -325,11 +358,12 @@ scripts/petrichor folder create --kb-id 1 --name "新文件夹"
 scripts/petrichor article delete --article-id 123
 \`\`\`
 
-移动文章到另一个文件夹（追加到末尾）：
+同库移动文章（追加到末尾），或通过 \`--target-kb-id\` 跨知识库移动：
 
 \`\`\`bash
 scripts/petrichor article move --article-id 123 --parent-id 5
 scripts/petrichor article move --article-id 123 --parent-root
+scripts/petrichor article move --article-id 123 --target-kb-id 2 --parent-root
 \`\`\`
 
 \`references/endpoints.md\` 内有等价 curl 示例与完整字段说明。
@@ -364,6 +398,21 @@ scripts/petrichor doc view --kb-id 1 --page-key index
 \`\`\`
 
 详细字段见 \`references/endpoints.md\`。
+`
+}
+
+function buildGraphSubSkillMarkdown() {
+    return `# Petrichor — Graph（全站星图检索）
+
+全站星图只包含已公开分享的文章。它适合回答实体关系、概念关联和「围绕某概念写过什么」；私有知识库内容仍使用 \`doc search\` / \`doc tree\`。
+
+## 命令
+
+\`\`\`bash
+scripts/petrichor graph search --query "A 和 B 有什么关系" --max-hops 2 --limit 5
+\`\`\`
+
+返回 \`matched\`、\`nodes\`、\`links\`、\`paths\` 和 \`articles\`；命中文章后可继续用 \`doc view --article-id <ID>\` 读取正文。
 `
 }
 
@@ -575,10 +624,11 @@ Authorization: Bearer <apiKey>
 
 - \`POST /api/agent/article/create\`
   - scope: \`article:write\`
-  - body: \`{"knowledgeBaseId":"1","parentId":null,"title":"标题","contentMd":"# 标题","tags":[]}\`
+  - body: \`{"knowledgeBaseId":"1","parentId":null,"title":"标题","contentMd":"# 标题","tags":[],"metadata":{"source":"agent"}}\`
 - \`POST /api/agent/article/update\`
   - scope: \`article:write\`
-  - body: \`{"articleId":"123","title":"标题","contentMd":"# 标题","tags":[]}\`
+  - body: \`{"articleId":"123","title":"标题","contentMd":"# 标题","tags":[],"metadata":{"source":"agent"}}\`
+  - \`metadata\` 只支持文本或文本数组；更新时省略该字段会保留已有元数据。
 - \`POST /api/agent/article/delete\`
   - scope: \`article:delete\`
   - body: \`{"articleId":"123"}\`
@@ -589,8 +639,8 @@ Authorization: Bearer <apiKey>
   - 省略 \`parentId\` 时不过滤父节点；显式传 \`null\` 表示根目录。
 - \`POST /api/agent/article/move\`
   - scope: \`article:write\`
-  - body: \`{"articleId":"123","parentId":"5","targetIndex":0}\`
-  - \`parentId\` 为 \`null\` 表示移动到根目录；省略 \`targetIndex\` 默认追加到末尾。
+  - body: \`{"articleId":"123","targetKnowledgeBaseId":"2","parentId":"5","targetIndex":0}\`
+  - 省略 \`targetKnowledgeBaseId\` 表示同库移动；\`parentId\` 为 \`null\` 表示目标知识库根目录；省略 \`targetIndex\` 默认追加到末尾。
 
 ## 分享
 
@@ -644,6 +694,13 @@ Authorization: Bearer <apiKey>
   - scope: \`qa:read\`
   - body: \`{"question":"问题","knowledgeBaseId":"1","limit":6}\`
   - 跨库问答时省略 \`knowledgeBaseId\`。
+
+## 全站星图
+
+- \`POST /api/agent/site-graph/search\`
+  - scope: \`doc:read\`
+  - body: \`{"query":"A 和 B 有什么关系","maxHops":2,"limit":5}\`
+  - 只检索已公开分享文章构成的全站星图，返回实体、关系边、路径与关联文章。
 
 ## 知识 Wiki
 
@@ -816,6 +873,21 @@ def _read_content(args: argparse.Namespace) -> str:
     return content
 
 
+def _read_metadata(args: argparse.Namespace) -> Optional[Dict[str, Any]]:
+    raw = getattr(args, "metadata_json", None)
+    if raw is None:
+        return None
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as e:
+        sys.stderr.write(f"[petrichor] Invalid --metadata-json: {e}\\n")
+        sys.exit(EXIT_USAGE)
+    if not isinstance(value, dict):
+        sys.stderr.write("[petrichor] --metadata-json must be a JSON object\\n")
+        sys.exit(EXIT_USAGE)
+    return value
+
+
 def _print_json(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2))
 
@@ -863,6 +935,9 @@ def cmd_article_create(args: argparse.Namespace) -> None:
         "contentMd": _read_content(args),
         "tags": args.tag or [],
     }
+    metadata = _read_metadata(args)
+    if metadata is not None:
+        body["metadata"] = metadata
     _print_json(_request("POST", "/api/agent/article/create", body))
 
 
@@ -873,6 +948,9 @@ def cmd_article_update(args: argparse.Namespace) -> None:
         "contentMd": _read_content(args),
         "tags": args.tag or [],
     }
+    metadata = _read_metadata(args)
+    if metadata is not None:
+        body["metadata"] = metadata
     _print_json(_request("POST", "/api/agent/article/update", body))
 
 
@@ -909,6 +987,8 @@ def cmd_article_move(args: argparse.Namespace) -> None:
         "articleId": _id(args.article_id),
         "parentId": None if args.parent_root else _id(args.parent_id),
     }
+    if args.target_kb_id is not None:
+        body["targetKnowledgeBaseId"] = _id(args.target_kb_id)
     if args.target_index is not None:
         body["targetIndex"] = args.target_index
     _print_json(_request("POST", "/api/agent/article/move", body))
@@ -959,6 +1039,11 @@ def cmd_doc_ask(args: argparse.Namespace) -> None:
     if args.kb_id is not None:
         body["knowledgeBaseId"] = _id(args.kb_id)
     _print_json(_request("POST", "/api/agent/document/qa", body))
+
+
+def cmd_graph_search(args: argparse.Namespace) -> None:
+    body = {"query": args.query, "maxHops": args.max_hops, "limit": args.limit}
+    _print_json(_request("POST", "/api/agent/site-graph/search", body))
 
 
 def cmd_share_create(args: argparse.Namespace) -> None:
@@ -1049,11 +1134,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--parent-id", type=int, default=None)
     p.add_argument("--title", required=True)
     p.add_argument("--tag", action="append", help="可重复，例：--tag agent --tag draft")
+    p.add_argument("--metadata-json", help="文章元数据 JSON 对象，只支持文本或文本数组")
     _add_content_args(p)
     p = article_sub.add_parser("update", help="更新文章（必须传完整标题和正文）")
     p.add_argument("--article-id", type=int, required=True)
     p.add_argument("--title", required=True)
     p.add_argument("--tag", action="append")
+    p.add_argument("--metadata-json", help="文章元数据 JSON 对象；省略则保留现有元数据")
     _add_content_args(p)
     p = article_sub.add_parser("delete", help="删除文章")
     p.add_argument("--article-id", type=int, required=True)
@@ -1065,8 +1152,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tag", action="append", help="可重复，命中的文章需同时包含全部 tag")
     p.add_argument("--keyword", default="", help="按标题 ILIKE 模糊匹配")
     p.add_argument("--limit", type=int, default=50)
-    p = article_sub.add_parser("move", help="移动文章到另一个文件夹")
+    p = article_sub.add_parser("move", help="移动文章到同库或另一个知识库")
     p.add_argument("--article-id", type=int, required=True)
+    p.add_argument("--target-kb-id", type=int, default=None, help="目标知识库 ID；省略表示当前知识库")
     p.add_argument("--parent-id", type=int, default=None, help="目标父文件夹 ID；与 --parent-root 互斥")
     p.add_argument("--parent-root", action="store_true", help="移动到根目录")
     p.add_argument("--target-index", type=int, default=None, help="目标排序位置，默认追加到末尾")
@@ -1086,6 +1174,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--kb-id", type=int, required=True)
     p.add_argument("--article-id", type=int, default=None, help="只在某篇文档内检索；省略则检索整个知识库")
     p.add_argument("--limit", type=int, default=6)
+
+    graph = sub.add_parser("graph", help="全站公开星图检索")
+    graph_sub = graph.add_subparsers(dest="graph_cmd", required=True)
+    p = graph_sub.add_parser("search", help="检索实体、关系路径与关联公开文章")
+    p.add_argument("--query", required=True)
+    p.add_argument("--max-hops", type=int, choices=[1, 2, 3], default=2)
+    p.add_argument("--limit", type=int, default=5)
     p = doc_sub.add_parser("semantic", help="向量语义检索（近义/概念性表述；需服务端配置 PostgreSQL + 向量模型）")
     p.add_argument("--query", required=True)
     p.add_argument("--kb-id", type=int, required=True)
@@ -1156,6 +1251,7 @@ COMMANDS = {
     ("doc", "tree"): cmd_doc_tree,
     ("doc", "semantic"): cmd_doc_semantic,
     ("doc", "ask"): cmd_doc_ask,
+    ("graph", "search"): cmd_graph_search,
     ("share", "create"): cmd_share_create,
     ("share", "revoke"): cmd_share_revoke,
     ("share", "info"): cmd_share_info,
@@ -1176,6 +1272,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "folder": "folder_cmd",
         "article": "article_cmd",
         "doc": "doc_cmd",
+        "graph": "graph_cmd",
         "share": "share_cmd",
         "summary": "summary_cmd",
         "mindmap": "mindmap_cmd",

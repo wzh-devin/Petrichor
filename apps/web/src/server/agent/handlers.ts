@@ -5,6 +5,11 @@ import { and, asc, desc, eq, gt, ilike, inArray, isNull, or, type SQL } from "dr
 import { z } from "zod"
 import { callChatCompletion } from "@/server/ai/generation"
 import { requireCurrentUser } from "@/server/auth/current-user"
+import {
+    normalizeArticleMetadata,
+    parseStoredArticleMetadata,
+    synchronizeArticleMetadata,
+} from "@/lib/article-metadata"
 import { getDb } from "@/server/db/client"
 import {
     agentCallLogs,
@@ -35,7 +40,7 @@ import {
     normalizeMindmapModelOutput,
     parseJsonOrNull,
 } from "@/server/kb/mindmap-logic"
-import { isDescendantKnowledgeBaseNode, moveNodeIdIntoSiblingOrder } from "@/server/kb/node-move-logic"
+import { moveArticle } from "@/server/kb/article-move-logic"
 import {
     assertKnowledgeBaseOwner,
     deleteArticleWikiPages,
@@ -66,8 +71,17 @@ import {
     toAgentApiKeyResponse,
     type AgentAuthContext,
 } from "@/server/agent/api-key"
-import { buildAgentManifest, buildAgentMcpInfo, buildAgentSkillMarkdown, buildAgentSkillPackageZip } from "@/server/agent/skill"
+import {
+    AGENT_API_CAPABILITIES,
+    AGENT_API_VERSION,
+    buildAgentManifest,
+    buildAgentMcpInfo,
+    buildAgentSkillMarkdown,
+    buildAgentSkillPackageZip,
+} from "@/server/agent/skill"
 import { getPublicBaseUrl } from "@/server/public-site/site-url"
+import { loadPublicSiteGraph } from "@/server/site-graph/public-graph"
+import { retrieveFromGraph } from "@/server/site-graph/qa-retrieval"
 
 type Db = ReturnType<typeof getDb>
 type User = Awaited<ReturnType<typeof requireCurrentUser>>
@@ -88,11 +102,24 @@ const optionalIdSchema = z.preprocess((value) => {
     return value
 }, idSchema.nullable())
 
+const agentArticleMetadataSchema = z.unknown().transform((value, ctx) => {
+    try {
+        return normalizeArticleMetadata(value)
+    } catch (error) {
+        ctx.addIssue({
+            code: "custom",
+            message: error instanceof Error ? error.message : "文章元数据格式无效",
+        })
+        return z.NEVER
+    }
+})
+
 const agentArticleCreateSchema = z.object({
     contentJson: z.string().optional().nullable(),
     contentMd: z.string().min(1),
     contentMetaJson: z.string().optional().nullable(),
     knowledgeBaseId: idSchema,
+    metadata: agentArticleMetadataSchema.optional().default({}),
     parentId: optionalIdSchema.optional(),
     tags: z.array(z.string().trim().min(1).max(40)).max(50).optional().default([]),
     title: z.string().trim().min(1).max(200),
@@ -103,6 +130,7 @@ const agentArticleUpdateSchema = z.object({
     contentJson: z.string().optional().nullable(),
     contentMd: z.string().min(1),
     contentMetaJson: z.string().optional().nullable(),
+    metadata: agentArticleMetadataSchema.optional(),
     tags: z.array(z.string().trim().min(1).max(40)).max(50).optional().default([]),
     title: z.string().trim().min(1).max(200),
 })
@@ -194,7 +222,14 @@ const agentArticleListSchema = z.object({
 const agentArticleMoveSchema = z.object({
     articleId: idSchema,
     parentId: optionalIdSchema.optional(),
+    targetKnowledgeBaseId: idSchema.optional(),
     targetIndex: z.coerce.number().int().min(0).optional(),
+})
+
+const agentSiteGraphSearchSchema = z.object({
+    query: z.string().trim().min(1).max(200),
+    maxHops: z.coerce.number().int().min(1).max(3).optional(),
+    limit: z.coerce.number().int().min(1).max(10).optional(),
 })
 
 const agentWikiKbSchema = z.object({
@@ -357,35 +392,12 @@ export async function agentCapabilities(request: NextRequest) {
         const baseUrl = getRequestBaseUrl(request)
         return ok({
             name: "Petrichor Agent API",
-            version: "2026-06-08",
+            version: AGENT_API_VERSION,
             baseUrl,
             keyPrefix: context.apiKey.keyPrefix,
             scopes: context.scopes,
             supportedScopes: AGENT_API_KEY_SCOPES,
-            capabilities: [
-                "knowledge-base.list",
-                "knowledge-base.tree",
-                "folder.create",
-                "article.create",
-                "article.update",
-                "article.delete",
-                "article.list",
-                "article.move",
-                "article.share.create",
-                "article.share.revoke",
-                "article.share.info",
-                "article.summary.generate",
-                "article.mindmap.generate",
-                "document.search",
-                "document.tree",
-                "document.semantic-search",
-                "document.view",
-                "document.qa",
-                "wiki.page.list",
-                "wiki.page.detail",
-                "wiki.lint",
-                "wiki.ingest",
-            ],
+            capabilities: AGENT_API_CAPABILITIES,
             manifest: buildAgentManifest(baseUrl),
             mcp: buildAgentMcpInfo(baseUrl),
             knowledgeBases: await listUserKnowledgeBases(context.userId),
@@ -574,6 +586,7 @@ export async function agentCreateArticle(request: NextRequest) {
         await assertKnowledgeBaseOwner(db, context.userId, input.knowledgeBaseId)
         await assertFolderParent(db, context.userId, input.knowledgeBaseId, input.parentId)
         const sortOrder = await nextSortOrder(db, context.userId, input.knowledgeBaseId, input.parentId)
+        const metadata = synchronizeArticleMetadata(input.metadata, input.title, input.tags)
 
         const [node] = await db
             .insert(knowledgeBaseNodes)
@@ -597,6 +610,7 @@ export async function agentCreateArticle(request: NextRequest) {
                 contentMd: input.contentMd,
                 contentJson: input.contentJson || null,
                 contentMetaJson: input.contentMetaJson || null,
+                metadataJson: Object.keys(metadata).length ? JSON.stringify(metadata) : null,
                 ...buildPublicArticleMetadata(input.contentMd),
             })
             .returning()
@@ -627,6 +641,11 @@ export async function agentUpdateArticle(request: NextRequest) {
             contentMd: input.contentMd,
         }, context.userId))
         const removedImageObjectKeys = [...previousImageObjectKeys].filter((key) => !nextImageObjectKeys.has(key))
+        const metadata = synchronizeArticleMetadata(
+            input.metadata ?? parseStoredArticleMetadata(article.metadataJson),
+            input.title,
+            input.tags,
+        )
 
         await db
             .update(knowledgeBaseArticles)
@@ -635,6 +654,7 @@ export async function agentUpdateArticle(request: NextRequest) {
                 contentMd: input.contentMd,
                 contentJson: input.contentJson || null,
                 contentMetaJson: input.contentMetaJson || null,
+                metadataJson: Object.keys(metadata).length ? JSON.stringify(metadata) : null,
                 ...buildPublicArticleMetadata(input.contentMd),
                 updatedAt: new Date(),
             })
@@ -758,6 +778,7 @@ export async function agentViewDocument(request: NextRequest) {
                 title: article.title,
                 contentMd: article.contentMd,
                 tags,
+                metadata: parseStoredArticleMetadata(article.metadataJson),
                 createdAt: formatDate(article.createdAt),
                 updatedAt: formatDate(article.updatedAt),
             })
@@ -1144,6 +1165,7 @@ export async function agentListArticles(request: NextRequest) {
             parentId: row.node.parentId == null ? null : String(row.node.parentId),
             title: row.article.title,
             tags: tagsByArticle.get(row.article.id) ?? [],
+            metadata: parseStoredArticleMetadata(row.article.metadataJson),
             path: buildArticlePath(nodeMap, row.node.id),
             sortOrder: row.node.sortOrder,
             createdAt: formatDate(row.article.createdAt),
@@ -1162,76 +1184,24 @@ export async function agentMoveArticle(request: NextRequest) {
     return withAgent(request, async (context) => {
         requireAgentScope(context, "article:write")
         const input = agentArticleMoveSchema.parse(await readJson(request))
-        const db = getDb()
-        const article = await loadOwnedArticle(db, context.userId, input.articleId)
-        const targetParentId = input.parentId ?? null
-
-        await assertFolderParent(db, context.userId, article.knowledgeBaseId, targetParentId)
-
-        const allNodes = await db
-            .select()
-            .from(knowledgeBaseNodes)
-            .where(and(
-                eq(knowledgeBaseNodes.userId, context.userId),
-                eq(knowledgeBaseNodes.knowledgeBaseId, article.knowledgeBaseId),
-            ))
-
-        const nodeId = article.nodeId
-        if (targetParentId === nodeId || isDescendantKnowledgeBaseNode(allNodes, nodeId, targetParentId)) {
-            throw badRequest("不能把节点移动到自身或子文件夹中")
-        }
-
-        const node = allNodes.find((item) => item.id === nodeId)
-        if (!node) throw notFound("文章节点不存在")
-
-        const sourceParentId = node.parentId ?? null
-        const sourceSiblings = allNodes
-            .filter((item) => (item.parentId ?? null) === sourceParentId)
-            .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-        const targetSiblings = allNodes
-            .filter((item) => (item.parentId ?? null) === targetParentId)
-            .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)
-
-        const targetOrder = moveNodeIdIntoSiblingOrder(
-            targetSiblings.map((item) => item.id),
-            nodeId,
-            input.targetIndex,
-        )
-        const sourceOrder = sourceParentId === targetParentId
-            ? targetOrder
-            : sourceSiblings.map((item) => item.id).filter((id) => id !== nodeId)
-
-        const updatedAt = new Date()
-        if (sourceParentId !== targetParentId) {
-            for (const [index, id] of sourceOrder.entries()) {
-                await db
-                    .update(knowledgeBaseNodes)
-                    .set({ sortOrder: index + 1, updatedAt })
-                    .where(and(eq(knowledgeBaseNodes.id, id), eq(knowledgeBaseNodes.userId, context.userId)))
-            }
-        }
-        for (const [index, id] of targetOrder.entries()) {
-            const values = id === nodeId
-                ? { parentId: targetParentId, sortOrder: index + 1, updatedAt }
-                : { sortOrder: index + 1, updatedAt }
-            await db
-                .update(knowledgeBaseNodes)
-                .set(values)
-                .where(and(eq(knowledgeBaseNodes.id, id), eq(knowledgeBaseNodes.userId, context.userId)))
-        }
-
-        if (sourceParentId !== targetParentId) {
-            invalidatePublicArticleListCache()
-            invalidatePublicArticleDetailCache()
-        }
-
-        return ok({
-            articleId: String(article.id),
-            nodeId: String(nodeId),
-            knowledgeBaseId: String(article.knowledgeBaseId),
-            parentId: targetParentId == null ? null : String(targetParentId),
-            updatedAt: updatedAt.toISOString(),
+        const article = await loadOwnedArticle(getDb(), context.userId, input.articleId)
+        const result = await moveArticle({
+            userId: context.userId,
+            articleId: input.articleId,
+            targetKnowledgeBaseId: input.targetKnowledgeBaseId ?? article.knowledgeBaseId,
+            parentId: input.parentId ?? null,
+            targetIndex: input.targetIndex,
         })
+        return ok({ ...result, updatedAt: new Date().toISOString() })
+    })
+}
+
+export async function agentSearchSiteGraph(request: NextRequest) {
+    return withAgent(request, async (context) => {
+        requireAgentScope(context, "doc:read")
+        const input = agentSiteGraphSearchSchema.parse(await readJson(request))
+        const payload = await loadPublicSiteGraph()
+        return ok(retrieveFromGraph(payload, input))
     })
 }
 

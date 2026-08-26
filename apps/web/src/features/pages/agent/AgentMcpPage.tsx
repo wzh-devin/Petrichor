@@ -27,6 +27,7 @@ const MCP_TOOL_GROUPS: Array<{ title: string; scopes: string[]; tools: string[] 
       "list_knowledge_bases",
       "get_knowledge_base_tree",
       "search_documents",
+      "search_site_graph",
       "search_document_tree",
       "semantic_search_document_tree",
       "view_document",

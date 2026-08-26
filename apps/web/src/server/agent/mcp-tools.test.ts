@@ -37,6 +37,14 @@ describe("AGENT_MCP_TOOL_SPECS", () => {
             expect(spec.description.trim().length).toBeGreaterThan(10)
         }
     })
+
+    it("包含最新版文章与星图能力", () => {
+        const specs = new Map(AGENT_MCP_TOOL_SPECS.map((spec) => [spec.name, spec]))
+        expect(specs.get("search_site_graph")?.endpointPath).toBe("/api/agent/site-graph/search")
+        expect(specs.get("move_article")?.inputSchema).toHaveProperty("targetKnowledgeBaseId")
+        expect(specs.get("create_article")?.inputSchema).toHaveProperty("metadata")
+        expect(specs.get("update_article")?.inputSchema).toHaveProperty("metadata")
+    })
 })
 
 describe("toAgentMcpToolResult", () => {

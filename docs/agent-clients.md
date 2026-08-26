@@ -9,7 +9,7 @@ Petrichor 提供两条把知识库能力接入外部 Agent（Claude Code、Codex
 | 适用客户端 | 原生支持 MCP 的工具（Claude Code / Codex / Cursor / Claude Desktop 等） | 任何能执行 shell 命令的 Agent |
 | 安装成本 | 一行配置，无需下载文件 | 下载 ZIP、解压、改包内 `config.json` |
 | 参数校验 | 工具入参带 JSON Schema，客户端调用前校验 | 由 CLI 的 argparse 校验 |
-| 能力范围 | 检索 / 阅读 / 问答 / 文章写操作 / Wiki / 分享（20 个工具） | 同 MCP，额外覆盖 AI 摘要 / 思维导图 / 知识图谱 |
+| 能力范围 | 检索 / 阅读 / 全站星图 / 问答 / 文章写操作 / Wiki / 分享（21 个工具） | 同 MCP，额外覆盖 AI 摘要 / 思维导图 / 知识图谱 |
 | 推荐场景 | 客户端支持 MCP 时的默认选择 | 客户端不支持 MCP，或需要 AI 生成能力 |
 
 两条路径能力保持一致（Skill 是能力超集），可以同时启用。
@@ -81,7 +81,7 @@ MCP 配置文件，格式相同：
 
 | 分组 | 工具 | scope |
 | --- | --- | --- |
-| 检索与阅读 | `list_knowledge_bases` `get_knowledge_base_tree` `search_documents` `search_document_tree` `semantic_search_document_tree` `view_document` `list_articles` | `doc:read` |
+| 检索与阅读 | `list_knowledge_bases` `get_knowledge_base_tree` `search_documents` `search_site_graph` `search_document_tree` `semantic_search_document_tree` `view_document` `list_articles` | `doc:read` |
 | 文档问答 | `ask_documents` | `qa:read` |
 | 文章与文件夹 | `create_folder` `create_article` `update_article` `move_article` | `article:write` |
 | 文章删除 | `delete_article` | `article:delete` |
@@ -100,7 +100,7 @@ Skill 包是一个 ZIP（`GET /api/agent/skill-pack`），解压后是一个符�
 petrichor/
 ├── SKILL.md                 # 根入口：按用户意图路由到子文档
 ├── config.json              # 站点地址与 Agent API Key
-├── skills/                  # setup / articles / docs / qa / share / ai / wiki 七个子能力
+├── skills/                  # setup / articles / docs / graph / qa / share / ai / wiki 八个子能力
 ├── scripts/petrichor        # 零依赖 Python CLI（所有能力的统一入口）
 ├── scripts/petrichor-api.sh # curl 版回退脚本
 ├── references/endpoints.md  # 全部 REST 端点字段与示例
@@ -160,6 +160,7 @@ petrichor/scripts/petrichor doc tree --query "问题" --kb-id 1
 | 列出知识库 | `list_knowledge_bases` | `kb list` | `POST /api/agent/knowledge-base/list` |
 | 知识库目录树 | `get_knowledge_base_tree` | `kb tree` | `POST /api/agent/knowledge-base/tree` |
 | 关键词搜索 | `search_documents` | `doc search` | `POST /api/agent/document/search` |
+| 全站星图检索 | `search_site_graph` | `graph search` | `POST /api/agent/site-graph/search` |
 | 目录树推理检索 | `search_document_tree` | `doc tree` | `POST /api/agent/document/tree` |
 | 向量语义检索 | `semantic_search_document_tree` | `doc semantic` | `POST /api/agent/document/semantic-search` |
 | 读取文档 / Wiki 页 | `view_document` | `doc view` | `POST /api/agent/document/view` |
@@ -168,7 +169,7 @@ petrichor/scripts/petrichor doc tree --query "问题" --kb-id 1
 | 新建文件夹 | `create_folder` | `folder create` | `POST /api/agent/folder/create` |
 | 新建文章 | `create_article` | `article create` | `POST /api/agent/article/create` |
 | 更新文章 | `update_article` | `article update` | `POST /api/agent/article/update` |
-| 移动文章 | `move_article` | `article move` | `POST /api/agent/article/move` |
+| 同库 / 跨库移动文章 | `move_article` | `article move --target-kb-id ...` | `POST /api/agent/article/move` |
 | 删除文章 | `delete_article` | `article delete` | `POST /api/agent/article/delete` |
 | Wiki 页面列表 | `list_wiki_pages` | `wiki page list` | `POST /api/agent/wiki/page/list` |
 | 读取 Wiki 页面 | `read_wiki_page` | `wiki page detail` | `POST /api/agent/wiki/page/detail` |

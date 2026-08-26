@@ -13,6 +13,7 @@ import {
     agentMoveArticle,
     agentRetrieveDocumentTree,
     agentSearchDocuments,
+    agentSearchSiteGraph,
     agentSemanticSearchDocumentTree,
     agentShareCreate,
     agentShareInfo,
@@ -33,13 +34,14 @@ import {
     type AgentMcpToolResult,
     type AgentMcpToolSpec,
 } from "@/server/agent/mcp-tools"
+import { AGENT_API_VERSION } from "@/server/agent/skill"
 
 export const AGENT_MCP_SERVER_NAME = "petrichor"
-export const AGENT_MCP_SERVER_VERSION = "2026-07-02"
+export const AGENT_MCP_SERVER_VERSION = AGENT_API_VERSION
 
 export const AGENT_MCP_SERVER_INSTRUCTIONS = [
     "Petrichor 个人知识库 MCP Server：检索、阅读、写入用户的知识库与文章。",
-    "检索策略：回答文档细节问题时优先 search_document_tree（章节级推理检索）；近义/概念性表述用 semantic_search_document_tree；跨库粗扫用 search_documents；命中片段不足时用 view_document / read_wiki_page 读全文。",
+    "检索策略：关系型问题用 search_site_graph；文档细节优先 search_document_tree；近义/概念性表述用 semantic_search_document_tree；跨库粗扫用 search_documents；命中片段不足时用 view_document / read_wiki_page 读全文。",
     "写入策略：update_article 是全量覆盖，改前先 view_document 读原文。",
     "危险操作：delete_article、revoke_article_share 必须先向用户复述目标并获得明确确认。",
     "所有工具都要求 API Key 具备对应 scope，权限不足会返回 403。",
@@ -52,6 +54,7 @@ const AGENT_MCP_TOOL_HANDLERS: Record<AgentMcpToolName, AgentRestHandler> = {
     list_knowledge_bases: agentListKnowledgeBases,
     get_knowledge_base_tree: agentKnowledgeBaseTree,
     search_documents: agentSearchDocuments,
+    search_site_graph: agentSearchSiteGraph,
     search_document_tree: agentRetrieveDocumentTree,
     semantic_search_document_tree: agentSemanticSearchDocumentTree,
     view_document: agentViewDocument,

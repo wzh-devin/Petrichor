@@ -33,8 +33,9 @@
 - Skill 包：`/api/agent/skill-pack`，输出 `petrichor-agent-skills.zip`，内含一个顶层 `petrichor/` Skill，根目录 `SKILL.md` 按用户意图路由到子文档：
   - `config.json`：站点地址与 Agent API Key 配置。
   - `skills/setup.md`：配置、自检、接口发现。
-  - `skills/articles.md`：新建文章、更新文章、删除文章、创建文件夹、移动文章。
+  - `skills/articles.md`：新建/更新文章元数据、删除文章、创建文件夹、同库/跨库移动文章。
   - `skills/docs.md`：知识库列表、目录树、文档搜索、文档查看。
+  - `skills/graph.md`：全站公开星图的实体、关系、路径与关联文章检索。
   - `skills/qa.md`：文档问答和引用结果使用。
   - `skills/share.md`：文章分享创建/撤销/查询、密码与到期管理。
   - `skills/ai.md`：AI 摘要、思维导图、知识图谱生成。
@@ -60,19 +61,21 @@
 - `POST /api/agent/article/create`：新建文章。
 - `POST /api/agent/article/update`：更新文章。
 - `POST /api/agent/article/delete`：删除文章。
+- `POST /api/agent/article/move`：同库或跨知识库移动文章。
 - `POST /api/agent/document/search`：搜索文档。
 - `POST /api/agent/document/tree`：章节目录树推理式检索。
 - `POST /api/agent/document/semantic-search`：章节目录树向量语义检索（需要
   PostgreSQL + 向量模型）。
 - `POST /api/agent/document/view`：查看源文章或 Wiki 页面。
 - `POST /api/agent/document/qa`：基于文档上下文问答。
+- `POST /api/agent/site-graph/search`：检索公开文章构成的全站星图。
 - `POST /api/agent/call-log/list`：登录用户查看外部调用日志。
 
 ## MCP Server
 
 `POST /api/mcp` 暴露一个无状态 Streamable HTTP MCP Server
 （实现在 `apps/web/app/api/mcp/route.ts`），是 REST 能力层之上的协议适配层：
-20 个 MCP 工具一一委托到对应的 `/api/agent/**` 端点，鉴权、scope 校验、调用
+21 个 MCP 工具一一委托到对应的 `/api/agent/**` 端点，鉴权、scope 校验、调用
 审计日志全部复用现有实现。工具规格（名称、scope、目标端点、入参 schema）
 集中在 `apps/web/src/server/agent/mcp-tools.ts`，接线在
 `apps/web/src/server/agent/mcp.ts`。
@@ -81,7 +84,7 @@
   未带或无效 Key 一律 401（`initialize` 也不例外）。
 - 传输：仅 Streamable HTTP（POST）；未启用 SSE 传输，因此不需要 Redis，
   可直接跑在 Vercel Serverless 上。
-- 工具覆盖：知识库/目录树浏览、关键词/推理/语义三种检索、文档阅读、文档问答、
+- 工具覆盖：知识库/目录树浏览、关键词/推理/语义/全站星图检索、文档阅读、文档问答、
   文章与文件夹写操作、Wiki 编译/体检、文章分享管理。
 
 ### 客户端接入

@@ -328,8 +328,9 @@ Petrichor 内置了一套**面向外部 Agent**（Claude Code、Codex、Cursor�
 | --- | --- |
 | `config.json` | Skill 包内配置文件，填写站点地址与 Agent API Key |
 | `skills/setup.md` | 首次配置、自检、API Key 权限检查、接口发现 |
-| `skills/articles.md` | 新建 / 更新 / 删除文章、创建文件夹、移动文章 |
+| `skills/articles.md` | 新建 / 更新文章及元数据、创建文件夹、同库 / 跨库移动、删除文章 |
 | `skills/docs.md` | 浏览知识库、查看目录树、列文章、搜索文档、查看正文 / Wiki |
+| `skills/graph.md` | 检索全站公开星图中的实体、关系、路径与关联文章 |
 | `skills/qa.md` | 基于知识库上下文的文档问答（含跨库问答） |
 | `skills/share.md` | 公开 / 撤销文章分享、设置访问密码与到期时间 |
 | `skills/ai.md` | AI 摘要、思维导图、知识图谱生成 |
@@ -338,7 +339,7 @@ Petrichor 内置了一套**面向外部 Agent**（Claude Code、Codex、Cursor�
 
 ### 接入步骤
 
-1. **生成 API Key**：仪表盘 → **Agent 集成 → API Key 管理 → 新建**，按需勾选权限（`article:write` / `article:delete` / `doc:read` / `qa:read`），保存明文。
+1. **生成 API Key**：仪表盘 → **Agent 集成 → API Key 管理 → 新建**，按需勾选文章、文档、问答、分享、Wiki 或 AI 权限，保存明文。
 2. **下载 Skill 包**：仪表盘 → **Agent 集成 → Skill 包 → 下载包**，或直接访问 `/api/agent/skill-pack`，得到 `petrichor-agent-skills.zip`。
 3. **导入 Agent 工具**：解压后将 Skill 目录放入 Claude Code / Codex 对应的 Skills 路径（参考各工具文档）。
 4. **编辑配置文件**：打开解压后的 `petrichor/config.json`，确认 `baseUrl`，并把 `apiKey` 改成上一步生成的明文 Key。

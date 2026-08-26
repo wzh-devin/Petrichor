@@ -50,6 +50,18 @@ export const AGENT_MCP_TOOL_SPECS = [
         },
     },
     {
+        name: "search_site_graph",
+        title: "检索全站星图",
+        description: "在已公开分享文章构成的全站星图中检索实体与概念，返回关系边、关联路径和终点文章。适合关系型问题；私有知识库内容请使用文档检索工具。",
+        scope: "doc:read",
+        endpointPath: endpoints.siteGraphSearch,
+        inputSchema: {
+            query: z.string().min(1).max(200).describe("实体、概念或关系问题"),
+            maxHops: z.number().int().min(1).max(3).optional().describe("关系扩散跳数，默认 2"),
+            limit: z.number().int().min(1).max(10).optional().describe("入口实体上限，默认 5"),
+        },
+    },
+    {
         name: "search_document_tree",
         title: "章节树推理检索",
         description: "推理式检索：在指定知识库的文档章节目录树上定位与问题最相关的章节，返回面包屑路径、摘要与原文片段（含 articleId 与 nodeKey）。回答细节性问题时优先使用它，比关键词搜索更精准。",
@@ -128,7 +140,7 @@ export const AGENT_MCP_TOOL_SPECS = [
     {
         name: "create_article",
         title: "新建文章",
-        description: "在指定知识库中新建 Markdown 文章，可指定父文件夹与标签，返回新文章的 articleId。",
+        description: "在指定知识库中新建 Markdown 文章，可指定父文件夹、标签与元数据，返回新文章的 articleId。",
         scope: "article:write",
         endpointPath: endpoints.articleCreate,
         inputSchema: {
@@ -137,6 +149,7 @@ export const AGENT_MCP_TOOL_SPECS = [
             contentMd: z.string().min(1).describe("Markdown 正文"),
             parentId: idInputSchema.optional().describe("可选：父文件夹节点 ID"),
             tags: z.array(z.string().min(1).max(40)).max(50).optional().describe("可选：文章标签"),
+            metadata: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional().describe("可选：文章元数据，值为文本或文本数组"),
         },
     },
     {
@@ -150,6 +163,7 @@ export const AGENT_MCP_TOOL_SPECS = [
             title: z.string().min(1).max(200).describe("文章标题"),
             contentMd: z.string().min(1).describe("Markdown 正文（全量覆盖）"),
             tags: z.array(z.string().min(1).max(40)).max(50).optional().describe("可选：文章标签（全量覆盖）"),
+            metadata: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional().describe("可选：文章元数据；省略则保留现有元数据"),
         },
     },
     {
@@ -165,11 +179,12 @@ export const AGENT_MCP_TOOL_SPECS = [
     {
         name: "move_article",
         title: "移动文章",
-        description: "把文章移动到目标文件夹（parentId 不传表示移到根目录），可用 targetIndex 指定排序位置。",
+        description: "把文章移动到目标知识库与文件夹；省略 targetKnowledgeBaseId 表示同库移动，parentId 不传表示目标库根目录。",
         scope: "article:write",
         endpointPath: endpoints.articleMove,
         inputSchema: {
             articleId: idInputSchema.describe("文章 ID"),
+            targetKnowledgeBaseId: idInputSchema.optional().describe("可选：目标知识库 ID；省略表示当前知识库"),
             parentId: idInputSchema.optional().describe("目标父文件夹节点 ID，不传表示根目录"),
             targetIndex: z.number().int().min(0).optional().describe("可选：目标位置（从 0 开始）"),
         },
