@@ -1,11 +1,12 @@
 import * as React from "react"
 import { createPortal } from "react-dom"
-import { AlertCircle, ChevronLeft, ChevronUp, FileDown, FileUp, Flame, Hash, MoreHorizontal, Plus, RefreshCw, Save, Settings2, Share2, Sparkles, X } from "@/components/iconimate"
+import { AlertCircle, ChevronLeft, ChevronUp, Eye, EyeOff, FileDown, FileUp, Flame, Hash, MoreHorizontal, Plus, RefreshCw, Save, Settings2, Share2, Sparkles, X } from "@/components/iconimate"
 import { toast } from "sonner"
 import { useNavigate, useParams } from "react-router-dom"
 
 import { resolveAxiosErrorMessage } from "@/components/knowledge/article-share-utils"
 import { PlateMarkdownEditor, type PlateMarkdownEditorHandle } from "@/components/plate/PlateMarkdownEditor"
+import { PlateMarkdownPreview } from "@/components/plate/PlateMarkdownPreview"
 import { ArticleShareDialog } from "@/components/knowledge/ArticleShareDialog"
 import { BurnLinkDialog } from "@/components/knowledge/BurnLinkDialog"
 import {
@@ -309,14 +310,16 @@ export function KnowledgeBaseArticleEditorPage() {
   const [refreshingPublicCache, setRefreshingPublicCache] = React.useState(false)
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false)
   const [burnDialogOpen, setBurnDialogOpen] = React.useState(false)
+  const [previewing, setPreviewing] = React.useState(false)
   const [recoverableDraft, setRecoverableDraft] = React.useState<ArticleDraftRecord | null>(null)
   const [activeHeadingId, setActiveHeadingId] = React.useState("")
   const loadedArticleId = loaded?.articleId || ""
   const readOnly = Boolean(loaded?.readOnly)
   const isOwner = loaded?.permission === "OWNER"
+  const articleToc = React.useMemo(() => buildToc(contentMd), [contentMd])
   const navToc = React.useMemo(
-    () => buildToc(contentMd).filter((item) => item.level >= 2 && item.level <= 4),
-    [contentMd]
+    () => articleToc.filter((item) => item.level >= 2 && item.level <= 4),
+    [articleToc]
   )
   const currentSnapshot = React.useMemo(
     () => buildCurrentSnapshot(title, contentMd, contentJson, contentMetaJson, metadata, tags),
@@ -665,6 +668,14 @@ export function KnowledgeBaseArticleEditorPage() {
     }
     return latest
   }, [handleContentStateChange])
+
+  const togglePreview = React.useCallback(() => {
+    if (!previewing) {
+      syncLatestEditorContentState()
+      commitTag()
+    }
+    setPreviewing((current) => !current)
+  }, [commitTag, previewing, syncLatestEditorContentState])
 
   const hasUnsavedContentBeforeImport = React.useCallback(
     (latest?: { markdown: string; contentJson: string; contentMetaJson: string }) => {
@@ -1196,6 +1207,18 @@ export function KnowledgeBaseArticleEditorPage() {
           ) : <span />}
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 px-2.5 text-muted-foreground hover:text-foreground"
+            disabled={loading || !loaded}
+            aria-pressed={previewing}
+            onClick={togglePreview}
+          >
+            {previewing ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            <span className="hidden text-sm sm:inline">{previewing ? "退出预览" : "预览"}</span>
+          </Button>
           {!readOnly ? (
             <Button
               variant="ghost" size="sm"
@@ -1320,6 +1343,7 @@ export function KnowledgeBaseArticleEditorPage() {
             value={title}
             placeholder="无标题"
             disabled={loading || readOnly}
+            readOnly={previewing}
             rows={1}
             onChange={(e) => setTitle(e.target.value)}
             className="mb-3 w-full resize-none overflow-hidden border-0 bg-transparent text-3xl font-bold leading-tight outline-none placeholder:text-muted-foreground disabled:opacity-60"
@@ -1331,7 +1355,7 @@ export function KnowledgeBaseArticleEditorPage() {
               <Badge key={tag} variant="secondary" className="gap-1 pr-1.5 h-5 text-xs font-normal rounded-full">
                 <Hash className="size-2.5 opacity-40" />
                 <span className="truncate max-w-[12rem]">{tag}</span>
-                {!readOnly ? (
+                {!readOnly && !previewing ? (
                   <button
                     type="button"
                     className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 opacity-40 hover:opacity-80"
@@ -1344,7 +1368,7 @@ export function KnowledgeBaseArticleEditorPage() {
                 ) : null}
               </Badge>
             ))}
-            {tagInputVisible && !readOnly ? (
+            {tagInputVisible && !readOnly && !previewing ? (
               <Input
                 ref={tagInputRef}
                 value={tagDraft}
@@ -1359,7 +1383,7 @@ export function KnowledgeBaseArticleEditorPage() {
                 onBlur={() => { if (tagDraft.trim()) addTag(); setTagInputVisible(false) }}
               />
             ) : (
-              !readOnly && tags.length < 20 && (
+              !readOnly && !previewing && tags.length < 20 && (
                 <button
                   type="button"
                   className="inline-flex h-5 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -1389,17 +1413,27 @@ export function KnowledgeBaseArticleEditorPage() {
           />
 
           <div ref={editorWrapperRef}>
-            <PlateMarkdownEditor
-              ref={markdownEditorRef}
-              key={`${loaded?.articleId ?? `pending-${articleId ?? "unknown"}`}:${currentUser?.id ?? 'anon'}`}
-              currentUser={currentUser ?? undefined}
-              initialMarkdown={contentMd}
-              initialContentJson={contentJson}
-              initialContentMetaJson={contentMetaJson}
-              disabled={loading || readOnly}
-              placeholder="请输入文章内容..."
-              onContentStateChange={handleContentStateChange}
-            />
+            {previewing ? (
+              <PlateMarkdownPreview
+                className="plate-editor-content min-h-[50vh]"
+                contentJson={contentJson}
+                contentMetaJson={contentMetaJson}
+                headings={articleToc}
+                markdown={contentMd}
+              />
+            ) : (
+              <PlateMarkdownEditor
+                ref={markdownEditorRef}
+                key={`${loaded?.articleId ?? `pending-${articleId ?? "unknown"}`}:${currentUser?.id ?? 'anon'}`}
+                currentUser={currentUser ?? undefined}
+                initialMarkdown={contentMd}
+                initialContentJson={contentJson}
+                initialContentMetaJson={contentMetaJson}
+                disabled={loading || readOnly}
+                placeholder="请输入文章内容..."
+                onContentStateChange={handleContentStateChange}
+              />
+            )}
           </div>
         </div>
 

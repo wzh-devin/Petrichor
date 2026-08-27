@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 
 import type {
   CodeDrawingType,
@@ -552,7 +553,7 @@ function CodeDrawingTextarea({
   );
 }
 
-function CodeDrawingPreviewArea({
+export function CodeDrawingPreviewArea({
   image,
   loading,
   error,
@@ -583,7 +584,6 @@ function CodeDrawingPreviewArea({
   const stageRef = React.useRef<HTMLDivElement>(null);
   const zoomRef = React.useRef(1);
   const zoomModifierRef = React.useRef(false);
-  const zoomFrameRef = React.useRef<number | null>(null);
   const panStartRef = React.useRef({ x: 0, y: 0, left: 0, top: 0 });
   const showImage = viewMode === VIEW_MODE.Both || viewMode === VIEW_MODE.Image;
   const imageAspectRatio = React.useMemo(
@@ -613,20 +613,17 @@ function CodeDrawingPreviewArea({
     const anchorX = anchor?.x ?? viewportRect.left + viewportRect.width / 2;
     const anchorY = anchor?.y ?? viewportRect.top + viewportRect.height / 2;
     const ratioX = stageRect.width > 0
-      ? Math.min(1, Math.max(0, (anchorX - stageRect.left) / stageRect.width))
+      ? (anchorX - stageRect.left) / stageRect.width
       : 0.5;
     const ratioY = stageRect.height > 0
-      ? Math.min(1, Math.max(0, (anchorY - stageRect.top) / stageRect.height))
+      ? (anchorY - stageRect.top) / stageRect.height
       : 0.5;
 
     zoomRef.current = nextZoom;
-    setZoom(nextZoom);
-    zoomFrameRef.current = requestAnimationFrame(() => {
-      const nextStageRect = stage.getBoundingClientRect();
-      viewport.scrollLeft += nextStageRect.left + ratioX * nextStageRect.width - anchorX;
-      viewport.scrollTop += nextStageRect.top + ratioY * nextStageRect.height - anchorY;
-      zoomFrameRef.current = null;
-    });
+    flushSync(() => setZoom(nextZoom));
+    const nextStageRect = stage.getBoundingClientRect();
+    viewport.scrollLeft += nextStageRect.left + ratioX * nextStageRect.width - anchorX;
+    viewport.scrollTop += nextStageRect.top + ratioY * nextStageRect.height - anchorY;
   }, []);
 
   React.useEffect(() => {
@@ -669,7 +666,6 @@ function CodeDrawingPreviewArea({
         || (!event.ctrlKey && !event.metaKey && !zoomModifierRef.current)
       ) return;
       event.preventDefault();
-      if (zoomFrameRef.current !== null) return;
       changeZoom(
         zoomRef.current + (event.deltaY < 0 ? 0.1 : -0.1),
         { x: event.clientX, y: event.clientY }
@@ -681,8 +677,6 @@ function CodeDrawingPreviewArea({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('wheel', handleWheel, { capture: true });
-      if (zoomFrameRef.current !== null) cancelAnimationFrame(zoomFrameRef.current);
-      zoomFrameRef.current = null;
     };
   }, [changeZoom, expanded]);
 
